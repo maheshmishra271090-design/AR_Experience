@@ -1,0 +1,950 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>AR Vision</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#05050a;--accent:#00f5c4;--accent2:#7b5cfa;
+  --text:#e8e8f0;--muted:#6b6b80;
+  --glow:0 0 40px rgba(0,245,196,0.25);
+}
+html,body{width:100%;height:100%;background:var(--bg);color:var(--text);
+  font-family:'DM Sans',sans-serif;overflow:hidden;
+  -webkit-tap-highlight-color:transparent;-webkit-font-smoothing:antialiased}
+
+/* ── screen layer ── */
+.screen{position:fixed;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  transition:opacity .5s ease,transform .5s ease;z-index:10}
+.screen.hidden{opacity:0;pointer-events:none;transform:scale(0.97)}
+
+/* grid + noise */
+.grid-bg{position:fixed;inset:0;z-index:0;pointer-events:none;
+  background-image:
+    linear-gradient(rgba(0,245,196,.03) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(0,245,196,.03) 1px,transparent 1px);
+  background-size:60px 60px}
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E")}
+
+/* ══════════════════════════════════
+   SPLASH
+══════════════════════════════════ */
+#splash{background:var(--bg);z-index:50;gap:1.2rem}
+.splash-spinner{width:44px;height:44px;border:2px solid rgba(0,245,196,.15);
+  border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.splash-text{font-size:.7rem;letter-spacing:.25em;text-transform:uppercase;color:var(--muted)}
+.splash-error{background:rgba(255,77,109,.1);border:1px solid rgba(255,77,109,.3);
+  border-radius:12px;padding:1rem 1.5rem;font-size:.82rem;color:#ff8099;
+  max-width:300px;text-align:center;line-height:1.7;white-space:pre-line;display:none}
+.splash-error.visible{display:block}
+.retry-btn{margin-top:.6rem;background:transparent;border:1.5px solid var(--accent);
+  color:var(--accent);padding:.65rem 1.8rem;border-radius:100px;
+  font-family:'DM Sans',sans-serif;font-size:.88rem;cursor:pointer;display:none}
+.retry-btn.visible{display:inline-block}
+
+/* ══════════════════════════════════
+   LANDING  (play button only)
+══════════════════════════════════ */
+#landing{
+  padding:2.5rem;text-align:center;gap:0;
+  background:radial-gradient(ellipse 80% 60% at 50% 40%,rgba(123,92,250,.13) 0%,transparent 70%)}
+
+.logo-mark{width:80px;height:80px;margin:0 auto 2rem;position:relative}
+.logo-mark svg{width:100%;height:100%}
+.scan-ring{position:absolute;inset:-8px;border:1.5px solid var(--accent);
+  border-radius:50%;opacity:.6;animation:spin-ring 4s linear infinite}
+.scan-ring:nth-child(2){inset:-20px;border-color:var(--accent2);opacity:.28;
+  animation-duration:7s;animation-direction:reverse}
+@keyframes spin-ring{to{transform:rotate(360deg)}}
+
+.eyebrow{font-size:.68rem;font-weight:500;letter-spacing:.28em;
+  text-transform:uppercase;color:var(--accent);margin-bottom:.9rem}
+#landing h1{font-family:'Bebas Neue',sans-serif;
+  font-size:clamp(3.8rem,15vw,7.5rem);line-height:.9;letter-spacing:.02em;
+  background:linear-gradient(135deg,#fff 25%,var(--accent2) 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  background-clip:text;margin-bottom:1rem}
+.landing-sub{font-size:.95rem;color:var(--muted);max-width:280px;
+  line-height:1.65;margin-bottom:2.8rem}
+/* exp count pill */
+.exp-pill{display:inline-flex;align-items:center;gap:6px;
+  background:rgba(0,245,196,.08);border:1px solid rgba(0,245,196,.2);
+  border-radius:100px;padding:.3rem .9rem;font-size:.65rem;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--accent);
+  margin-bottom:2rem}
+.exp-pill-dot{width:5px;height:5px;border-radius:50%;background:var(--accent);
+  animation:blink 1.4s ease-in-out infinite}
+
+.play-btn{display:inline-flex;align-items:center;gap:14px;
+  background:var(--accent);color:#000;border:none;
+  padding:1.1rem 2.6rem;border-radius:100px;
+  font-family:'DM Sans',sans-serif;font-size:1rem;font-weight:600;
+  cursor:pointer;animation:pulse-btn 2.6s ease infinite;
+  transition:transform .15s}
+.play-btn:active{transform:scale(.96)}
+@keyframes pulse-btn{
+  0%,100%{box-shadow:0 0 0 0 rgba(0,245,196,.4),var(--glow)}
+  50%{box-shadow:0 0 0 14px rgba(0,245,196,0),var(--glow)}}
+
+.feature-row{display:flex;gap:1.8rem;margin-top:3rem;opacity:.4}
+.feat{font-size:.68rem;letter-spacing:.1em;text-transform:uppercase}
+
+/* ══════════════════════════════════
+   PERMISSION
+══════════════════════════════════ */
+#permission{padding:2rem;text-align:center;gap:1.4rem;
+  background:radial-gradient(ellipse 70% 50% at 50% 50%,rgba(255,77,109,.07) 0%,transparent 70%)}
+.cam-icon{width:80px;height:80px;background:rgba(255,255,255,.04);
+  border:1.5px solid rgba(255,255,255,.1);border-radius:22px;
+  display:flex;align-items:center;justify-content:center;
+  animation:float 3s ease-in-out infinite}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+#permission h2{font-family:'Bebas Neue',sans-serif;font-size:2.4rem;letter-spacing:.05em}
+#perm-status{font-size:.9rem;color:var(--muted);max-width:270px;line-height:1.65;text-align:center}
+.perm-btn{background:transparent;border:1.5px solid var(--accent);color:var(--accent);
+  padding:.9rem 2.2rem;border-radius:100px;font-family:'DM Sans',sans-serif;
+  font-size:.95rem;font-weight:500;cursor:pointer}
+.denied-msg{background:rgba(255,77,109,.1);border:1px solid rgba(255,77,109,.3);
+  border-radius:12px;padding:1rem 1.4rem;font-size:.8rem;color:#ff8099;
+  max-width:290px;line-height:1.6;display:none}
+.denied-msg.visible{display:block}
+
+/* ══════════════════════════════════
+   AR SCREEN
+══════════════════════════════════ */
+#ar-screen{background:#000;z-index:1}
+
+#camera-feed{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+#ar-canvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:2}
+#detection-frame{position:absolute;border:2px solid var(--accent);border-radius:8px;
+  box-shadow:0 0 24px rgba(0,245,196,.5),inset 0 0 24px rgba(0,245,196,.06);
+  display:none;z-index:4;pointer-events:none;transition:all .12s ease}
+
+/* video overlay */
+#ar-video-overlay{position:absolute;display:none;z-index:3;
+  border-radius:10px;box-shadow:0 0 60px rgba(0,245,196,.28);
+  pointer-events:none;transform-origin:center;background:#000}
+
+/* 3D container */
+#three-container{position:absolute;inset:0;z-index:3;pointer-events:none;display:none}
+#three-container canvas{width:100%!important;height:100%!important}
+
+/* tap-to-play */
+#tap-to-play{position:absolute;inset:0;z-index:8;display:none;
+  align-items:center;justify-content:center;pointer-events:all;
+  background:rgba(0,0,0,.45);backdrop-filter:blur(4px)}
+#tap-to-play.visible{display:flex}
+.tap-circle{width:72px;height:72px;border-radius:50%;
+  background:rgba(0,245,196,.15);border:2px solid var(--accent);
+  display:flex;align-items:center;justify-content:center;
+  animation:pulse-btn 2s ease infinite}
+
+/* ── HUD ── */
+.ar-hud{position:absolute;inset:0;pointer-events:none;z-index:5}
+
+/* corner brackets */
+.hud-corner{position:absolute;width:26px;height:26px;
+  border-color:var(--accent);border-style:solid;opacity:.7}
+.hud-corner.tl{top:18px;left:18px;border-width:2px 0 0 2px;border-radius:4px 0 0 0}
+.hud-corner.tr{top:18px;right:18px;border-width:2px 2px 0 0;border-radius:0 4px 0 0}
+.hud-corner.bl{bottom:18px;left:18px;border-width:0 0 2px 2px;border-radius:0 0 0 4px}
+.hud-corner.br{bottom:18px;right:18px;border-width:0 2px 2px 0;border-radius:0 0 4px 0}
+
+/* scan sweep line */
+.scan-line{position:absolute;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,transparent,var(--accent),transparent);
+  opacity:0;animation:scan-sweep 3s ease-in-out infinite;z-index:6}
+@keyframes scan-sweep{
+  0%{top:8%;opacity:0}8%{opacity:.7}92%{opacity:.35}100%{top:92%;opacity:0}}
+
+/* top bar */
+.hud-top{position:absolute;top:0;left:60px;right:60px;
+  display:flex;align-items:center;justify-content:center;
+  padding-top:24px;gap:8px}
+.hud-title{font-size:.6rem;letter-spacing:.22em;text-transform:uppercase;
+  color:var(--accent);opacity:.85}
+.status-dot{width:6px;height:6px;border-radius:50%;background:var(--accent);
+  flex-shrink:0;animation:blink 1.5s ease-in-out infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.15}}
+
+/* matched experience name badge — shown when target detected */
+.exp-name-badge{position:absolute;top:52px;left:50%;
+  transform:translateX(-50%) translateY(-6px);
+  background:rgba(0,245,196,.12);border:1px solid rgba(0,245,196,.35);
+  border-radius:100px;padding:.32rem 1rem;
+  font-size:.65rem;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--accent);opacity:0;transition:opacity .35s,transform .35s;
+  white-space:nowrap;pointer-events:none}
+.exp-name-badge.visible{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* hint at bottom */
+.hint-bar{position:absolute;bottom:38px;left:50%;transform:translateX(-50%);
+  background:rgba(0,0,0,.58);backdrop-filter:blur(14px);
+  -webkit-backdrop-filter:blur(14px);
+  border:1px solid rgba(255,255,255,.1);border-radius:100px;
+  padding:.56rem 1.4rem;font-size:.76rem;color:var(--muted);
+  letter-spacing:.05em;white-space:nowrap;transition:opacity .4s;pointer-events:none}
+
+/* orientation pill */
+.orient-pill{position:absolute;top:22px;right:18px;
+  background:rgba(0,0,0,.5);backdrop-filter:blur(8px);
+  border:1px solid rgba(255,255,255,.1);border-radius:5px;
+  padding:.2rem .52rem;font-size:.56rem;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--muted);display:none}
+
+/* scanning count indicator */
+.scan-count{position:absolute;bottom:38px;right:18px;
+  background:rgba(0,0,0,.5);backdrop-filter:blur(8px);
+  border:1px solid rgba(255,255,255,.08);border-radius:8px;
+  padding:.4rem .7rem;text-align:center}
+.scan-count-num{font-family:'Bebas Neue',sans-serif;font-size:1.1rem;
+  color:var(--accent);line-height:1}
+.scan-count-lbl{font-size:.48rem;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--muted);margin-top:1px}
+
+/* AR init loader */
+.ar-loader{display:none;position:absolute;inset:0;background:rgba(0,0,0,.8);
+  z-index:20;align-items:center;justify-content:center;flex-direction:column;gap:.9rem}
+.ar-loader.active{display:flex}
+.spinner{width:40px;height:40px;border:2px solid rgba(0,245,196,.18);
+  border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
+.loader-text{font-size:.72rem;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}
+
+/* debug */
+#debug-panel{position:fixed;bottom:0;left:0;right:0;background:rgba(0,0,0,.92);
+  border-top:1px solid rgba(0,245,196,.18);padding:.6rem 1rem;z-index:100;
+  font-size:.58rem;color:var(--accent);font-family:monospace;
+  display:none;max-height:100px;overflow-y:auto;letter-spacing:.04em}
+#debug-panel.visible{display:block}
+</style>
+</head>
+<body>
+<div class="grid-bg"></div>
+
+<!-- ══ SPLASH ══ -->
+<div class="screen" id="splash">
+  <div class="splash-spinner"></div>
+  <span class="splash-text" id="splash-text">Loading Experience…</span>
+  <div class="splash-error" id="splash-error"></div>
+  <button class="retry-btn" id="retry-btn" onclick="boot()">Retry</button>
+</div>
+
+<!-- ══ LANDING ══ -->
+<div class="screen hidden" id="landing">
+  <div class="logo-mark">
+    <div class="scan-ring"></div>
+    <div class="scan-ring"></div>
+    <svg viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="18" y="18" width="44" height="44" rx="7" stroke="#00f5c4" stroke-width="1.6" fill="none"/>
+      <circle cx="40" cy="40" r="10" fill="#7b5cfa" opacity=".85"/>
+      <circle cx="40" cy="40" r="4" fill="#00f5c4"/>
+      <line x1="40" y1="4"  x2="40" y2="15" stroke="#00f5c4" stroke-width="1.5" opacity=".4"/>
+      <line x1="40" y1="65" x2="40" y2="76" stroke="#00f5c4" stroke-width="1.5" opacity=".4"/>
+      <line x1="4"  y1="40" x2="15" y2="40" stroke="#00f5c4" stroke-width="1.5" opacity=".4"/>
+      <line x1="65" y1="40" x2="76" y2="40" stroke="#00f5c4" stroke-width="1.5" opacity=".4"/>
+    </svg>
+  </div>
+
+  <p class="eyebrow">Augmented Reality</p>
+  <h1>AR<br>VISION</h1>
+
+  <div class="exp-pill">
+    <div class="exp-pill-dot"></div>
+    <span id="exp-count-label">Loading…</span>
+  </div>
+
+  <p class="landing-sub">Point your camera at any target image to instantly unlock its AR experience.</p>
+
+  <button class="play-btn" onclick="startFlow()">
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <path d="M3 2L13 8L3 14V2Z" fill="black"/>
+    </svg>
+    Start AR
+  </button>
+
+  <div class="feature-row">
+    <span class="feat">📱 iOS &amp; Android</span>
+    <span class="feat">🎥 Video &amp; 3D</span>
+    <span class="feat">⚡ Auto Detect</span>
+  </div>
+</div>
+
+<!-- ══ PERMISSION ══ -->
+<div class="screen hidden" id="permission">
+  <div class="cam-icon">
+    <svg width="34" height="34" viewBox="0 0 34 34" fill="none">
+      <rect x="3" y="10" width="28" height="19" rx="3" stroke="#e8e8f0" stroke-width="1.5" fill="none"/>
+      <circle cx="17" cy="19" r="5.5" stroke="#e8e8f0" stroke-width="1.5" fill="none"/>
+      <path d="M12 10V9a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1" stroke="#e8e8f0" stroke-width="1.5"/>
+      <circle cx="27" cy="14" r="1.5" fill="#00f5c4"/>
+    </svg>
+  </div>
+  <h2>Camera Access</h2>
+  <p id="perm-status">AR Vision needs your camera to detect target images and overlay content in real-time.</p>
+  <div class="denied-msg" id="denied-msg">
+    ⚠️ Camera was blocked. Go to your browser Settings → Site permissions → Camera, allow this site, then tap Try Again.
+  </div>
+  <button class="perm-btn" id="perm-btn" onclick="requestCamera()">Allow Camera</button>
+</div>
+
+<!-- ══ AR SCREEN ══ -->
+<div class="screen hidden" id="ar-screen">
+
+  <video id="camera-feed" autoplay playsinline muted></video>
+  <canvas id="ar-canvas"></canvas>
+  <div id="detection-frame"></div>
+  <video id="ar-video-overlay" playsinline crossorigin="anonymous"></video>
+  <div id="three-container"></div>
+
+  <!-- tap-to-play (autoplay:false entries) -->
+  <div id="tap-to-play" onclick="tapToPlay()">
+    <div class="tap-circle">
+      <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
+        <path d="M6 4L20 13L6 22V4Z" fill="#00f5c4"/>
+      </svg>
+    </div>
+  </div>
+
+  <div class="ar-hud">
+    <div class="hud-corner tl"></div>
+    <div class="hud-corner tr"></div>
+    <div class="hud-corner bl"></div>
+    <div class="hud-corner br"></div>
+    <div class="scan-line"></div>
+
+    <div class="hud-top">
+      <div class="status-dot"></div>
+      <span class="hud-title">AR VISION</span>
+    </div>
+
+    <!-- shown when a target is matched -->
+    <div class="exp-name-badge" id="exp-name-badge">TARGET LOCKED</div>
+
+    <!-- shown while scanning -->
+    <div class="hint-bar" id="hint-bar">Point camera at a target image</div>
+
+    <!-- orientation indicator (video mode) -->
+    <div class="orient-pill" id="orient-pill"></div>
+
+    <!-- how many targets are loaded -->
+    <div class="scan-count">
+      <div class="scan-count-num" id="scan-count-num">—</div>
+      <div class="scan-count-lbl">Targets</div>
+    </div>
+  </div>
+
+  <div class="ar-loader" id="ar-loader">
+    <div class="spinner"></div>
+    <span class="loader-text" id="loader-text">Initializing…</span>
+  </div>
+</div>
+
+<div id="debug-panel"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ╔═══════════════════════════════════════════════════════════════╗
+//  AR VISION  ·  Auto Multi-Target Detection  ·  v4.0
+//  Flow: Splash (fetch API) → Landing (tap Start) →
+//        Permission (if needed) → AR (scan all targets at once)
+// ╚═══════════════════════════════════════════════════════════════╝
+
+const CONFIG_URL = 'https://jsonmap.com/api/mock/dummy';
+const ANALYZE_EVERY = 8;          // analyse every N frames
+const LOST_FRAMES   = 12;         // consecutive non-match frames before "lost"
+
+// ── loaded experiences with pre-computed descriptors ──
+let ALL_EXPS      = [];           // normalised experience objects
+let expDescriptors = [];          // parallel array: {hist, edge} | null
+
+// ── active match state ──
+let activeExp     = null;         // currently triggered experience
+let lostCount     = 0;
+
+// ── camera / detection ──
+let stream        = null;
+let isDetecting   = false;
+let animFrameId   = null;
+let frameCount    = 0;
+let currentScreen = 'splash';
+
+// ── Three.js ──
+let threeScene = null, threeCamera = null, threeRenderer = null;
+let threeModel = null, threeAnimMixer = null, threeAnimClock = null;
+let threeRafId = null, threeNormScale = 1.0;
+let gltfLoaderReady = false, gltfLoaderLoading = false;
+
+const $ = id => document.getElementById(id);
+
+// ══════════════════════════════════════════════════════
+//  BOOT — fetch config, preload all descriptors
+// ══════════════════════════════════════════════════════
+async function boot() {
+  setSplashText('Loading Experience…');
+  $('splash-error').classList.remove('visible');
+  $('retry-btn').classList.remove('visible');
+
+  try {
+    const res = await fetch(CONFIG_URL);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const raw = await res.json();
+
+    if (!raw.experiences?.length) throw new Error('"experiences" array is empty or missing.');
+
+    ALL_EXPS = raw.experiences.map(normalizeExp);
+    dbg(`Fetched ${ALL_EXPS.length} experiences`);
+
+    // Pre-load descriptors for all targets that have an imageUrl
+    setSplashText('Analysing targets…');
+    expDescriptors = await Promise.all(ALL_EXPS.map(e => loadDescriptor(e.target.imageUrl)));
+    dbg('All descriptors ready');
+
+    // Update landing
+    const realCount = ALL_EXPS.filter(e => !!e.target.imageUrl).length;
+    $('exp-count-label').textContent =
+      `${realCount} target${realCount !== 1 ? 's' : ''} loaded`;
+    $('scan-count-num').textContent = realCount;
+
+    showScreen('landing');
+
+  } catch (err) {
+    console.error(err);
+    $('splash-error').textContent =
+      `Failed to load config\n\n${err.message}\n\n${CONFIG_URL}`;
+    $('splash-error').classList.add('visible');
+    $('retry-btn').classList.add('visible');
+  }
+}
+
+function setSplashText(t) { $('splash-text').textContent = t; }
+
+// ══════════════════════════════════════════════════════
+//  NORMALISE
+// ══════════════════════════════════════════════════════
+function normalizeExp(e) {
+  return {
+    id:          e.id          || ('exp-' + Math.random().toString(36).slice(2,7)),
+    name:        e.name        || 'Unnamed',
+    target: {
+      imageUrl:       e.target?.imageUrl       || '',
+      label:          e.target?.label          || 'Scan Target',
+      matchThreshold: +(e.target?.matchThreshold ?? 0.55),
+      triggerDelayMs: +(e.target?.triggerDelayMs ?? 600),
+    },
+    content: {
+      mode: e.content?.mode === 'model3d' ? 'model3d' : 'video',
+      video: {
+        url:         e.content?.video?.url         || '',
+        orientation: e.content?.video?.orientation === 'portrait' ? 'portrait' : 'landscape',
+        loop:        e.content?.video?.loop  ?? true,
+        muted:       e.content?.video?.muted ?? false,
+        autoplay:    e.content?.video?.autoplay ?? true,
+      },
+      model3d: {
+        url:            e.content?.model3d?.url            || '',
+        type:           e.content?.model3d?.type           || 'builtin',
+        scale:          +(e.content?.model3d?.scale        ?? 1.0),
+        autoRotate:        e.content?.model3d?.autoRotate  ?? true,
+        rotationSpeedX: +(e.content?.model3d?.rotationSpeedX ?? 0.008),
+        rotationSpeedY: +(e.content?.model3d?.rotationSpeedY ?? 0.012),
+      },
+    },
+  };
+}
+
+// ══════════════════════════════════════════════════════
+//  DESCRIPTOR EXTRACTION
+// ══════════════════════════════════════════════════════
+async function loadDescriptor(url) {
+  if (!url) return null;
+  return new Promise(resolve => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous'; // must be before .src
+    img.onload = () => {
+      const off = Object.assign(document.createElement('canvas'), {width:64, height:64});
+      off.getContext('2d').drawImage(img, 0, 0, 64, 64);
+      resolve(extractDesc(off.getContext('2d').getImageData(0,0,64,64)));
+    };
+    img.onerror = () => { dbg(`Descriptor load failed: ${url}`); resolve(null); };
+    img.src = url;
+  });
+}
+
+function extractDesc(idata) {
+  const d = idata.data, w = 64, h = 64;
+  const hist = new Float32Array(32);
+  let edgeSum = 0;
+  for (let y=1; y<h-1; y++) {
+    for (let x=1; x<w-1; x++) {
+      const i  = (y*w+x)*4,  il = (y*w+(x-1))*4, ir = (y*w+(x+1))*4;
+      const it = ((y-1)*w+x)*4, ib = ((y+1)*w+x)*4;
+      hist[Math.floor((d[i]*.299+d[i+1]*.587+d[i+2]*.114)/255*31)]++;
+      const gx=(d[ir]-d[il])/255, gy=(d[ib]-d[it])/255;
+      edgeSum += Math.sqrt(gx*gx + gy*gy);
+    }
+  }
+  const tot = w*h;
+  for (let i=0;i<32;i++) hist[i]/=tot;
+  return { hist, edge: edgeSum/tot };
+}
+
+function simScore(a, b) {
+  let hd=0;
+  for (let i=0;i<32;i++) hd+=Math.abs(a.hist[i]-b.hist[i]);
+  return Math.max(0, Math.min(1, 1-(hd/2)-Math.abs(a.edge-b.edge)*.5));
+}
+
+// ══════════════════════════════════════════════════════
+//  SCREEN NAV
+// ══════════════════════════════════════════════════════
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
+  $(id).classList.remove('hidden');
+  currentScreen = id;
+}
+
+// ══════════════════════════════════════════════════════
+//  PERMISSION FLOW
+// ══════════════════════════════════════════════════════
+async function startFlow() {
+  const state = await navigator.permissions?.query({name:'camera'}).catch(()=>null);
+  state?.state === 'granted' ? launchAR() : showScreen('permission');
+}
+
+async function requestCamera() {
+  const btn = $('perm-btn');
+  $('denied-msg').classList.remove('visible');
+  btn.textContent = 'Requesting…'; btn.disabled = true;
+  try {
+    const s = await navigator.mediaDevices.getUserMedia({video:true});
+    s.getTracks().forEach(t=>t.stop());
+    launchAR();
+  } catch {
+    btn.textContent = 'Try Again'; btn.disabled = false;
+    $('perm-status').textContent = 'Camera access is required. Please allow it and try again.';
+    $('denied-msg').classList.add('visible');
+  }
+}
+
+// ══════════════════════════════════════════════════════
+//  LAUNCH AR
+// ══════════════════════════════════════════════════════
+async function launchAR() {
+  showScreen('ar-screen');
+  $('ar-loader').classList.add('active');
+  setLoaderText('Starting camera…');
+
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video:{ facingMode:{ideal:'environment'}, width:{ideal:1280}, height:{ideal:720} }
+    });
+    const vid = $('camera-feed');
+    vid.srcObject = stream;
+    await new Promise(r => { vid.onloadedmetadata = r; });
+    await vid.play();
+
+    setupCanvas();
+
+    // Pre-setup Three.js scenes for any model3d experiences
+    // (we keep one shared renderer, rebuild per activation)
+    setLoaderText('Ready');
+    $('ar-loader').classList.remove('active');
+
+    startDetectionLoop();
+
+  } catch (err) {
+    console.error(err);
+    $('ar-loader').classList.remove('active');
+    showScreen('permission');
+    $('perm-status').textContent = 'Could not access camera. Please check permissions.';
+    $('denied-msg').classList.add('visible');
+    $('perm-btn').textContent = 'Try Again'; $('perm-btn').disabled = false;
+  }
+}
+
+function setupCanvas() {
+  const c = $('ar-canvas'), v = $('camera-feed');
+  c.width  = v.videoWidth  || innerWidth;
+  c.height = v.videoHeight || innerHeight;
+  c.style.cssText = 'width:100%;height:100%';
+}
+
+function setLoaderText(t) { $('loader-text').textContent = t; }
+
+// ══════════════════════════════════════════════════════
+//  DETECTION LOOP — checks ALL targets every frame batch
+// ══════════════════════════════════════════════════════
+function startDetectionLoop() {
+  isDetecting = true; frameCount = 0;
+  (function loop() {
+    if (!isDetecting) return;
+    if (++frameCount % ANALYZE_EVERY === 0) analyzeFrame();
+    animFrameId = requestAnimationFrame(loop);
+  })();
+}
+
+function analyzeFrame() {
+  const vid = $('camera-feed');
+  if (vid.readyState < 2) return;
+
+  // Grab current frame at 64×64
+  const off = Object.assign(document.createElement('canvas'), {width:64, height:64});
+  const ctx = off.getContext('2d');
+  const sw = Math.min(vid.videoWidth, 320), sh = Math.min(vid.videoHeight, 320);
+  ctx.drawImage(vid,
+    (vid.videoWidth-sw)/2, (vid.videoHeight-sh)/2, sw, sh,
+    0, 0, 64, 64
+  );
+  const frameDesc = extractDesc(ctx.getImageData(0,0,64,64));
+
+  // ── Score every experience's descriptor against live frame ──
+  let bestScore = -1, bestIdx = -1;
+  for (let i = 0; i < ALL_EXPS.length; i++) {
+    const desc = expDescriptors[i];
+    if (!desc) continue; // no-target (demo) entries — skip comparison
+    const score = simScore(desc, frameDesc);
+    if (score > bestScore) { bestScore = score; bestIdx = i; }
+  }
+
+  const threshold = bestIdx >= 0 ? ALL_EXPS[bestIdx].target.matchThreshold : 0.55;
+  dbg(`best=${bestIdx >= 0 ? ALL_EXPS[bestIdx].id : 'none'} score=${bestScore.toFixed(3)} thr=${threshold}`);
+
+  if (bestIdx >= 0 && bestScore > threshold) {
+    onTargetMatched(bestIdx, bestScore);
+  } else {
+    onNoMatch();
+  }
+}
+
+// ══════════════════════════════════════════════════════
+//  MATCH / LOST CALLBACKS
+// ══════════════════════════════════════════════════════
+function onTargetMatched(idx, score) {
+  lostCount = 0;
+  const exp = ALL_EXPS[idx];
+
+  // Show detection frame
+  const sz = Math.min(innerWidth, innerHeight) * .52;
+  const fr = $('detection-frame');
+  Object.assign(fr.style, {
+    display: 'block',
+    width:   sz + 'px',
+    height:  sz * .62 + 'px',
+    left:    (innerWidth/2 - sz/2) + 'px',
+    top:     (innerHeight/2 - sz*.31) + 'px',
+  });
+
+  // If same experience already active → do nothing more
+  if (activeExp && activeExp.id === exp.id) return;
+
+  // Different target matched — switch experience
+  dbg(`Switching to: ${exp.id}`);
+
+  // Tear down previous
+  if (activeExp) teardownActiveExp();
+
+  activeExp = exp;
+
+  // Show name badge
+  const badge = $('exp-name-badge');
+  badge.textContent = exp.target.label || exp.name;
+  badge.classList.add('visible');
+  $('hint-bar').style.opacity = '0';
+
+  // Orient pill
+  const op = $('orient-pill');
+  if (exp.content.mode === 'video') {
+    op.textContent = exp.content.video.orientation.toUpperCase();
+    op.style.display = 'block';
+  } else {
+    op.style.display = 'none';
+  }
+
+  // Trigger content after triggerDelayMs
+  setTimeout(() => {
+    if (activeExp?.id === exp.id) triggerContent(exp);
+  }, exp.target.triggerDelayMs);
+}
+
+function onNoMatch() {
+  lostCount++;
+  if (lostCount < LOST_FRAMES) return; // debounce flicker
+
+  $('detection-frame').style.display = 'none';
+
+  if (!activeExp) return;
+  teardownActiveExp();
+  activeExp = null;
+  lostCount = 0;
+
+  $('exp-name-badge').classList.remove('visible');
+  $('hint-bar').style.opacity = '1';
+  $('orient-pill').style.display = 'none';
+}
+
+function teardownActiveExp() {
+  if (!activeExp) return;
+  if (activeExp.content.mode === 'video') {
+    hideVideo();
+  } else {
+    teardownThreeJS();
+  }
+}
+
+// ══════════════════════════════════════════════════════
+//  CONTENT — VIDEO
+// ══════════════════════════════════════════════════════
+function triggerContent(exp) {
+  exp.content.mode === 'video' ? showVideo(exp) : showModel(exp);
+}
+
+function videoSize(orientation) {
+  const vw = innerWidth, vh = innerHeight;
+  let w, h;
+  if (orientation === 'portrait') {
+    h = Math.min(vh * .82, 680); w = h * (9/16);
+    if (w > vw * .88) { w = vw * .88; h = w * (16/9); }
+  } else {
+    w = Math.min(vw * .88, 560); h = w * (9/16);
+    if (h > vh * .72) { h = vh * .72; w = h * (16/9); }
+  }
+  return { w: Math.round(w), h: Math.round(h) };
+}
+
+function showVideo(exp) {
+  const v = $('ar-video-overlay'), vc = exp.content.video;
+  const { w, h } = videoSize(vc.orientation);
+
+  // Clear previous
+  v.pause(); v.removeAttribute('src'); v.load();
+
+  Object.assign(v.style, {
+    display:    'block',
+    width:      w + 'px',
+    height:     h + 'px',
+    left:       (innerWidth/2 - w/2) + 'px',
+    top:        (innerHeight/2 - h/2) + 'px',
+    opacity:    '0',
+    transform:  'scale(0.82)',
+    transition: 'opacity .4s ease, transform .4s cubic-bezier(.34,1.56,.64,1)',
+  });
+
+  v.src = vc.url; v.loop = vc.loop; v.muted = vc.muted;
+
+  if (vc.autoplay) {
+    $('tap-to-play').classList.remove('visible');
+    v.play().catch(() => { v.muted = true; v.play(); });
+  } else {
+    $('tap-to-play').classList.add('visible');
+  }
+
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    v.style.opacity = '1'; v.style.transform = 'scale(1)';
+  }));
+  dbg(`Video: ${vc.orientation} ${w}×${h}`);
+}
+
+function hideVideo() {
+  const v = $('ar-video-overlay');
+  $('tap-to-play').classList.remove('visible');
+  Object.assign(v.style, { opacity: '0', transform: 'scale(.9)' });
+  setTimeout(() => {
+    v.style.display = 'none'; v.pause();
+    v.removeAttribute('src'); v.load();
+  }, 380);
+}
+
+function tapToPlay() {
+  const v = $('ar-video-overlay');
+  $('tap-to-play').classList.remove('visible');
+  v.play().catch(() => { v.muted = true; v.play(); });
+}
+
+// ══════════════════════════════════════════════════════
+//  CONTENT — THREE.JS 3D
+// ══════════════════════════════════════════════════════
+function showModel(exp) {
+  const mc = exp.content.model3d;
+  teardownThreeJS(); // always start fresh
+
+  const cont = $('three-container');
+  threeScene = new THREE.Scene();
+
+  threeCamera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, .1, 1000);
+  threeCamera.position.set(0, 2, 5); threeCamera.lookAt(0, 0, 0);
+
+  threeRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  threeRenderer.setSize(innerWidth, innerHeight);
+  threeRenderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  threeRenderer.setClearColor(0x000000, 0);
+  cont.appendChild(threeRenderer.domElement);
+  cont.style.display = 'block';
+
+  // Lights
+  threeScene.add(new THREE.AmbientLight(0xffffff, .4));
+  const dl = new THREE.DirectionalLight(0x00f5c4, 1.2);
+  dl.position.set(5, 8, 5); threeScene.add(dl);
+  const pl = new THREE.PointLight(0x7b5cfa, 1.5, 10);
+  pl.position.set(-3, 3, 3); threeScene.add(pl);
+
+  threeAnimClock = new THREE.Clock();
+
+  const rx = mc.rotationSpeedX, ry = mc.rotationSpeedY, doRot = mc.autoRotate;
+  (function renderLoop() {
+    threeRafId = requestAnimationFrame(renderLoop);
+    const delta = threeAnimClock.getDelta();
+    if (threeAnimMixer) threeAnimMixer.update(delta);
+    if (threeModel && doRot) { threeModel.rotation.x += rx; threeModel.rotation.y += ry; }
+    if (threeRenderer && threeScene && threeCamera)
+      threeRenderer.render(threeScene, threeCamera);
+  })();
+
+  mc.url ? loadGLB(mc) : buildFallbackMesh(mc);
+}
+
+function teardownThreeJS() {
+  if (threeRafId) { cancelAnimationFrame(threeRafId); threeRafId = null; }
+  if (threeRenderer) {
+    threeRenderer.dispose();
+    const c = threeRenderer.domElement;
+    if (c.parentNode) c.parentNode.removeChild(c);
+    threeRenderer = null;
+  }
+  if (threeScene) {
+    threeScene.traverse(o => {
+      if (o.geometry) o.geometry.dispose();
+      if (o.material) {
+        if (Array.isArray(o.material)) o.material.forEach(m => m.dispose());
+        else o.material.dispose();
+      }
+    });
+    threeScene = null;
+  }
+  threeCamera = null; threeModel = null;
+  threeAnimMixer = null; threeAnimClock = null; threeNormScale = 1.0;
+  $('three-container').style.display = 'none';
+}
+
+function buildFallbackMesh(mc) {
+  const geo = new THREE.TorusKnotGeometry(.8 * mc.scale, .25, 100, 16);
+  const mat = new THREE.MeshStandardMaterial({
+    color:0x00f5c4, metalness:.7, roughness:.2, emissive:0x002a22, emissiveIntensity:.3
+  });
+  threeModel = new THREE.Mesh(geo, mat);
+  threeModel.scale.set(0,0,0); threeScene.add(threeModel);
+  tweenModelIn(mc.scale);
+}
+
+function loadGLB(mc) {
+  const doLoad = () => {
+    new THREE.GLTFLoader().load(mc.url,
+      gltf => {
+        threeModel = gltf.scene;
+        const box = new THREE.Box3().setFromObject(threeModel);
+        const sz  = box.getSize(new THREE.Vector3()).length();
+        threeNormScale = sz > 0 ? (2.5 * mc.scale / sz) : mc.scale;
+        threeModel.position.sub(box.getCenter(new THREE.Vector3()));
+        threeModel.scale.set(0,0,0); threeScene.add(threeModel);
+        if (gltf.animations?.length) {
+          threeAnimMixer = new THREE.AnimationMixer(threeModel);
+          gltf.animations.forEach(c => threeAnimMixer.clipAction(c).play());
+        }
+        tweenModelIn(threeNormScale);
+      },
+      undefined,
+      () => buildFallbackMesh(mc)
+    );
+  };
+  if (gltfLoaderReady) { doLoad(); }
+  else if (!gltfLoaderLoading) {
+    gltfLoaderLoading = true;
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/js/loaders/GLTFLoader.js';
+    s.onload = () => { gltfLoaderReady = true; gltfLoaderLoading = false; doLoad(); };
+    s.onerror = () => { gltfLoaderLoading = false; buildFallbackMesh(mc); };
+    document.head.appendChild(s);
+  } else {
+    const p = setInterval(() => { if (gltfLoaderReady) { clearInterval(p); doLoad(); } }, 80);
+  }
+}
+
+function tweenModelIn(target) {
+  if (!threeModel) return;
+  threeModel.scale.set(0,0,0);
+  const t = setInterval(() => {
+    const s = threeModel.scale.x;
+    if (s < target) { const n = Math.min(target, s + target * .07); threeModel.scale.set(n,n,n); }
+    else clearInterval(t);
+  }, 16);
+}
+
+// ══════════════════════════════════════════════════════
+//  FULL STOP
+// ══════════════════════════════════════════════════════
+function stopAR() {
+  isDetecting = false;
+  if (animFrameId) { cancelAnimationFrame(animFrameId); animFrameId = null; }
+  activeExp = null; lostCount = 0; frameCount = 0;
+  if (stream) { stream.getTracks().forEach(t=>t.stop()); stream = null; }
+  const v = $('ar-video-overlay');
+  v.pause(); v.removeAttribute('src'); v.load(); v.style.display = 'none';
+  $('tap-to-play').classList.remove('visible');
+  teardownThreeJS();
+  $('detection-frame').style.display = 'none';
+  $('exp-name-badge').classList.remove('visible');
+  $('hint-bar').style.opacity = '1';
+  dbg('AR stopped');
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (currentScreen !== 'ar-screen') return;
+  if (document.hidden) {
+    $('camera-feed').pause();
+    $('ar-video-overlay').pause();
+  } else {
+    $('camera-feed').play().catch(()=>{});
+    const v = $('ar-video-overlay');
+    if (v.style.display !== 'none' && activeExp?.content.video.autoplay)
+      v.play().catch(()=>{});
+  }
+});
+
+addEventListener('resize', () => {
+  if (threeCamera && threeRenderer) {
+    threeCamera.aspect = innerWidth/innerHeight;
+    threeCamera.updateProjectionMatrix();
+    threeRenderer.setSize(innerWidth, innerHeight);
+  }
+});
+
+// ══════════════════════════════════════════════════════
+//  DEBUG  ?debug=1
+// ══════════════════════════════════════════════════════
+const IS_DEBUG = new URLSearchParams(location.search).has('debug');
+let dbgLines = [];
+function dbg(...a) {
+  if (!IS_DEBUG) return;
+  const msg = a.map(x => typeof x==='object' ? JSON.stringify(x) : x).join(' ');
+  dbgLines.unshift(`[${new Date().toISOString().slice(11,23)}] ${msg}`);
+  if (dbgLines.length > 30) dbgLines.pop();
+  const p = $('debug-panel');
+  p.classList.add('visible');
+  p.textContent = dbgLines.join('\n');
+}
+
+// ══════════════════════════════════════════════════════
+//  BOOT
+// ══════════════════════════════════════════════════════
+addEventListener('DOMContentLoaded', boot);
+</script>
+</body>
+</html>
