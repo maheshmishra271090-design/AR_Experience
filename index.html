@@ -8,7 +8,43 @@
     <title>ExpRE</title>
 
     <!-- PWA: manifest + iOS meta tags -->
-    <link rel="manifest" href="./manifest.json">
+    <!-- PWA manifest injected dynamically so start_url = current URL (preserves ?id= param) -->
+    <script>
+        (function() {
+            const base = {
+                "name": "ExpRE",
+                "short_name": "ExpRE",
+                "description": "Experiencing Reality — point your camera at the product.",
+                "start_url": window.location.href,
+                "scope": window.location.origin + window.location.pathname.replace(/[^/]*$/, ''),
+                "display": "fullscreen",
+                "orientation": "portrait",
+                "background_color": "#000000",
+                "theme_color": "#000000",
+                "icons": [
+                    {
+                        "src": "https://raw.githubusercontent.com/Mahesh2710/ARData/main/DynamicData/poster/welcomeposter.png",
+                        "sizes": "192x192",
+                        "type": "image/png",
+                        "purpose": "any"
+                    },
+                    {
+                        "src": "https://raw.githubusercontent.com/Mahesh2710/ARData/main/DynamicData/poster/welcomeposter.png",
+                        "sizes": "512x512",
+                        "type": "image/png",
+                        "purpose": "any maskable"
+                    }
+                ],
+                "prefer_related_applications": false
+            };
+            const blob = new Blob([JSON.stringify(base)], { type: 'application/json' });
+            const url  = URL.createObjectURL(blob);
+            const link = document.createElement('link');
+            link.rel   = 'manifest';
+            link.href  = url;
+            document.head.appendChild(link);
+        })();
+    </script>
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -161,56 +197,6 @@
         @keyframes fadeInRight { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
         @keyframes spin { to { transform: rotate(360deg); } }
 
-        /* ── Add to Home Screen banner ── */
-        #a2hs-banner {
-            display: none;
-            position: fixed; bottom: 0; left: 0; width: 100%;
-            background: #1c1c1e;
-            border-top: 1px solid rgba(255,255,255,0.12);
-            padding: 16px 20px;
-            z-index: 500;
-            flex-direction: row; align-items: center; gap: 14px;
-            box-shadow: 0 -4px 24px rgba(0,0,0,0.5);
-            animation: slideUp 0.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-        }
-        #a2hs-banner .a2hs-icon {
-            width: 52px; height: 52px; border-radius: 14px; flex-shrink: 0;
-            background-image: url('https://raw.githubusercontent.com/Mahesh2710/ARData/main/DynamicData/poster/welcomeposter.png');
-            background-size: cover; background-position: center;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.4);
-        }
-        #a2hs-banner .a2hs-text { flex: 1; }
-        #a2hs-banner .a2hs-text h3 { color: #fff; font-size: 0.95rem; margin: 0 0 3px; }
-        #a2hs-banner .a2hs-text p  { color: #888; font-size: 0.78rem; margin: 0; }
-        #a2hs-banner .a2hs-actions { display: flex; gap: 8px; flex-shrink: 0; }
-        #a2hs-install {
-            padding: 9px 18px; background: #4185f4; color: #fff;
-            border: none; border-radius: 20px; font-weight: bold;
-            font-size: 0.85rem; cursor: pointer;
-        }
-        #a2hs-dismiss {
-            padding: 9px 14px; background: rgba(255,255,255,0.1); color: #aaa;
-            border: 1px solid rgba(255,255,255,0.15); border-radius: 20px;
-            font-size: 0.85rem; cursor: pointer;
-        }
-        /* iOS-specific A2HS instruction (no API, must show manual instructions) */
-        #ios-a2hs-tip {
-            display: none;
-            position: fixed; bottom: 0; left: 0; width: 100%;
-            background: #1c1c1e;
-            border-top: 1px solid rgba(255,255,255,0.12);
-            padding: 18px 20px 32px;   /* extra bottom padding for home indicator */
-            z-index: 500;
-            text-align: center;
-            animation: slideUp 0.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-        }
-        #ios-a2hs-tip p { color: #ccc; font-size: 0.88rem; line-height: 1.6; margin: 0 0 12px; }
-        #ios-a2hs-tip .share-icon { font-size: 1.2rem; vertical-align: middle; }
-        #ios-tip-close {
-            padding: 9px 24px; background: rgba(255,255,255,0.1); color: #aaa;
-            border: 1px solid rgba(255,255,255,0.15); border-radius: 20px;
-            font-size: 0.85rem; cursor: pointer;
-        }
     </style>
 </head>
 <body>
@@ -257,27 +243,6 @@
     <a href="#" target="_blank" id="buy-now-cta"></a>
     <div id="ar-scene-container"></div>
 
-    <!-- Android / Chrome: native A2HS install banner -->
-    <div id="a2hs-banner">
-        <div class="a2hs-icon"></div>
-        <div class="a2hs-text">
-            <h3>Add ExpRE to Home Screen</h3>
-            <p>Launch instantly, works like a native app</p>
-        </div>
-        <div class="a2hs-actions">
-            <button id="a2hs-install">Install</button>
-            <button id="a2hs-dismiss">✕</button>
-        </div>
-    </div>
-
-    <!-- iOS Safari: manual share-sheet instruction -->
-    <div id="ios-a2hs-tip">
-        <p>
-            Tap <span class="share-icon">⎙</span> <strong>Share</strong> then
-            <strong>"Add to Home Screen"</strong> to install ExpRE as an app
-        </p>
-        <button id="ios-tip-close">Got it</button>
-    </div>
 
     <script>
         const API_URL = "https://akm-img-a-in.tosshub.com/app/at-app/at_dev/newicons/AR_expierence.json#?jnsdk";
@@ -573,6 +538,11 @@
         // ── Play button ───────────────────────────────────────────────────────────
         playBtn.addEventListener('click', async () => {
             if (!campaignData) return;
+
+            // Silent PWA install — fires native prompt using this tap as the user gesture.
+            // AR loading starts immediately in parallel; user can accept/dismiss independently.
+            triggerSilentInstall();
+
             loadingOverlay.style.display = 'flex';
             loadingMsg.textContent = 'Loading AR Experience…';
 
@@ -599,80 +569,42 @@
             });
         }
 
-        // ── PWA: Add to Home Screen prompt ───────────────────────────────────────
-        // Android/Chrome fires 'beforeinstallprompt' which we capture and use to
-        // show our own styled banner instead of the browser's default prompt.
-        // iOS Safari has no API — we detect it and show manual instructions instead.
-
-        const a2hsBanner   = document.querySelector('#a2hs-banner');
-        const a2hsInstall  = document.querySelector('#a2hs-install');
-        const a2hsDismiss  = document.querySelector('#a2hs-dismiss');
-        const iosA2hsTip   = document.querySelector('#ios-a2hs-tip');
-        const iosTipClose  = document.querySelector('#ios-tip-close');
+        // ── PWA: Silent install on Play tap ──────────────────────────────────────
+        // No banners, no popups. Strategy:
+        //   1. Capture 'beforeinstallprompt' immediately and suppress the browser bar
+        //   2. When user taps Play (a real user gesture), fire .prompt() right away
+        //      The browser's native "Add to Home Screen?" sheet appears — 1 tap to confirm
+        //      The AR experience starts loading simultaneously behind it
+        //   3. iOS has no install API — nothing shown, user can use Safari's Share menu
+        //   4. Already-installed (standalone) — skip entirely
 
         let deferredInstallPrompt = null;
 
-        // Only show banners if not already installed (standalone = already on home screen)
         const isStandalone = window.matchMedia('(display-mode: standalone)').matches
                           || window.navigator.standalone === true;
 
         if (!isStandalone) {
-            // ── Android / Chrome: capture the native prompt event ─────────────────
+            // Capture and suppress the automatic browser prompt
             window.addEventListener('beforeinstallprompt', e => {
-                e.preventDefault(); // stop browser showing its own mini-bar
+                e.preventDefault();
                 deferredInstallPrompt = e;
-
-                // Show our banner after a short delay so it doesn't clash with page load
-                setTimeout(() => {
-                    a2hsBanner.style.display = 'flex';
-                }, 3000);
             });
 
-            a2hsInstall.addEventListener('click', async () => {
-                if (!deferredInstallPrompt) return;
-                a2hsBanner.style.display = 'none';
-                deferredInstallPrompt.prompt();
-                const { outcome } = await deferredInstallPrompt.userChoice;
+            window.addEventListener('appinstalled', () => {
+                deferredInstallPrompt = null;
+            });
+        }
+
+        // Called inside Play button tap — user gesture satisfies browser requirement
+        function triggerSilentInstall() {
+            if (!deferredInstallPrompt || isStandalone) return;
+            // Fire immediately — no await, so AR loading starts in parallel
+            deferredInstallPrompt.prompt();
+            deferredInstallPrompt.userChoice.then(({ outcome }) => {
                 console.log('[PWA] Install outcome:', outcome);
                 deferredInstallPrompt = null;
             });
-
-            a2hsDismiss.addEventListener('click', () => {
-                a2hsBanner.style.display = 'none';
-                // Don't re-show for this session
-                sessionStorage.setItem('a2hs-dismissed', '1');
-            });
-
-            // ── iOS Safari: no API, show manual tip instead ───────────────────────
-            // Detect: iOS + Safari + not already standalone
-            const isIOS    = /iphone|ipad|ipod/i.test(navigator.userAgent);
-            const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-
-            if (isIOS && isSafari && !sessionStorage.getItem('ios-tip-dismissed')) {
-                // Delay so it appears after the welcome screen animation settles
-                setTimeout(() => {
-                    iosA2hsTip.style.display = 'block';
-                }, 4000);
-            }
-
-            iosTipClose.addEventListener('click', () => {
-                iosA2hsTip.style.display = 'none';
-                sessionStorage.setItem('ios-tip-dismissed', '1');
-            });
-
-            // Hide banners automatically when AR starts (Play button tapped)
-            playBtn.addEventListener('click', () => {
-                a2hsBanner.style.display = 'none';
-                iosA2hsTip.style.display = 'none';
-            }, { once: true });
         }
-
-        // Listen for app being installed (Chrome fires this)
-        window.addEventListener('appinstalled', () => {
-            console.log('[PWA] App installed successfully');
-            a2hsBanner.style.display = 'none';
-            deferredInstallPrompt    = null;
-        });
     </script>
 </body>
 </html>
