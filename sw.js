@@ -1,162 +1,142 @@
 // ── ExpRE Service Worker ──────────────────────────────────────────────────────
-// Strategy:
-//   • Shell assets (HTML, manifest, offline page) → Cache First
-//     Cached on install, served instantly from cache, network never touched.
-//
-//   • Campaign API (JSON) → Network First with cache fallback
-//     Always tries network so campaign data stays fresh.
-//     Falls back to last cached version if offline.
-//
-//   • AR libraries (A-Frame, MindAR) → Cache First
-//     Large files that never change for a given URL (versioned CDN).
-//     Cached on first load, served from cache every subsequent visit.
-//
-//   • Everything else → Network Only
-//     Camera feed, target images, videos — never cache these.
+// Caching strategies:
+//   HTML / manifest  → Network First, cache fallback   (always fresh when online)
+//   Campaign API     → Network First, cache fallback   (always fresh when online)
+//   AR libraries     → Cache First                     (large, versioned CDN files)
+//   Videos / camera  → Network Only                    (never cache)
 
-const CACHE_VERSION   = 'expre-v1';
-const SHELL_CACHE     = `${CACHE_VERSION}-shell`;
-const API_CACHE       = `${CACHE_VERSION}-api`;
-const LIBRARY_CACHE   = `${CACHE_VERSION}-libs`;
+const CACHE_VERSION = 'expre-v2';
+const SHELL_CACHE   = `${CACHE_VERSION}-shell`;
+const API_CACHE     = `${CACHE_VERSION}-api`;
+const LIB_CACHE     = `${CACHE_VERSION}-libs`;
 
-// Files cached immediately on install (app shell)
-const SHELL_ASSETS = [
-    './ar-experience.html',
+const SHELL_FILES = [
+    './index.html',
     './manifest.json',
     './offline.html'
 ];
 
-// CDN libraries — large, versioned, never change
-const LIBRARY_URLS = [
+const LIB_URLS = [
     'https://aframe.io/releases/1.6.0/aframe.min.js',
     'https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js'
 ];
 
-// Campaign API URL
-const API_URL = 'https://akm-img-a-in.tosshub.com/app/at-app/at_dev/newicons/AR_expierence.json';
+const API_ORIGIN = 'https://akm-img-a-in.tosshub.com';
 
-// ── Install: pre-cache shell assets ──────────────────────────────────────────
+// ── Install ───────────────────────────────────────────────────────────────────
+// Cache each shell file individually so one 404 doesn't break the others.
+// Libraries are best-effort — don't block install if CDN is slow.
 self.addEventListener('install', event => {
-    event.waitUntil(
-        Promise.all([
-            // Cache shell
-            caches.open(SHELL_CACHE).then(cache =>
-                cache.addAll(SHELL_ASSETS).catch(err =>
-                    console.warn('[SW] Shell cache partial failure:', err)
-                )
-            ),
-            // Cache libraries (best-effort — don't block install if CDN is slow)
-            caches.open(LIBRARY_CACHE).then(cache =>
-                Promise.allSettled(
-                    LIBRARY_URLS.map(url => cache.add(url))
-                )
+    event.waitUntil((async () => {
+        const shellCache = await caches.open(SHELL_CACHE);
+
+        // Cache shell files one by one — ignore individual failures
+        await Promise.allSettled(
+            SHELL_FILES.map(url =>
+                fetch(url, { cache: 'reload' })
+                    .then(res => { if (res.ok) shellCache.put(url, res); })
+                    .catch(err => console.warn('[SW] Could not cache', url, err))
             )
-        ]).then(() => self.skipWaiting()) // activate immediately, don't wait for old SW to die
-    );
+        );
+
+        // Cache AR libraries in background (don't block install)
+        caches.open(LIB_CACHE).then(libCache =>
+            Promise.allSettled(LIB_URLS.map(url => libCache.add(url)))
+        );
+
+        await self.skipWaiting();
+    })());
 });
 
-// ── Activate: clean up old caches from previous versions ─────────────────────
+// ── Activate ──────────────────────────────────────────────────────────────────
 self.addEventListener('activate', event => {
-    const validCaches = [SHELL_CACHE, API_CACHE, LIBRARY_CACHE];
-    event.waitUntil(
-        caches.keys()
-            .then(keys => Promise.all(
-                keys
-                    .filter(key => !validCaches.includes(key))
-                    .map(key => {
-                        console.log('[SW] Deleting old cache:', key);
-                        return caches.delete(key);
-                    })
-            ))
-            .then(() => self.clients.claim()) // take control of all open tabs immediately
-    );
+    event.waitUntil((async () => {
+        const valid = [SHELL_CACHE, API_CACHE, LIB_CACHE];
+        const keys  = await caches.keys();
+        await Promise.all(
+            keys.filter(k => !valid.includes(k)).map(k => caches.delete(k))
+        );
+        await self.clients.claim();
+    })());
 });
 
-// ── Fetch: route requests to the right strategy ──────────────────────────────
+// ── Fetch ─────────────────────────────────────────────────────────────────────
 self.addEventListener('fetch', event => {
     const { request } = event;
-    const url = new URL(request.url);
-
-    // Only handle GET requests
     if (request.method !== 'GET') return;
 
-    // ── Strategy 1: Campaign API → Network First, cache fallback ──────────────
-    if (request.url.startsWith(API_URL)) {
-        event.respondWith(networkFirstWithCache(request, API_CACHE));
+    const url = new URL(request.url);
+
+    // 1. AR libraries → Cache First (huge files, versioned URLs, never change)
+    if (LIB_URLS.some(u => request.url.startsWith(u))) {
+        event.respondWith(cacheFirst(request, LIB_CACHE));
         return;
     }
 
-    // ── Strategy 2: AR libraries → Cache First (versioned CDN URLs) ───────────
-    if (LIBRARY_URLS.some(u => request.url.startsWith(u.split('?')[0]))) {
-        event.respondWith(cacheFirstWithNetwork(request, LIBRARY_CACHE));
+    // 2. Campaign API → Network First with cache fallback
+    if (url.origin === API_ORIGIN) {
+        event.respondWith(networkFirst(request, API_CACHE));
         return;
     }
 
-    // ── Strategy 3: App shell (HTML + manifest) → Cache First ─────────────────
-    if (
-        url.pathname.endsWith('ar-experience.html') ||
-        url.pathname.endsWith('manifest.json') ||
-        url.pathname.endsWith('offline.html') ||
-        url.pathname === '/' ||
-        url.pathname === '/index.html'
-    ) {
-        event.respondWith(cacheFirstWithOfflineFallback(request, SHELL_CACHE));
+    // 3. HTML navigation + manifest → Network First with offline fallback
+    //    Catches: /, /index.html, /ar-experience.html, any same-origin HTML
+    if (request.mode === 'navigate' ||
+        url.pathname.endsWith('.html') ||
+        url.pathname.endsWith('manifest.json')) {
+        event.respondWith(networkFirstWithOfflineFallback(request));
         return;
     }
 
-    // ── Strategy 4: Everything else (videos, images, camera) → Network Only ───
-    // Don't intercept — let browser handle naturally
+    // 4. Everything else (video, camera, images) → Network Only, no interception
 });
 
-// ── Strategy helpers ──────────────────────────────────────────────────────────
-
-// Network first: try network, store response in cache, fall back to cache
-async function networkFirstWithCache(request, cacheName) {
+// ── Strategy: Network First, cache fallback ───────────────────────────────────
+async function networkFirst(request, cacheName) {
     const cache = await caches.open(cacheName);
     try {
-        const networkResponse = await fetch(request);
-        if (networkResponse.ok) {
-            cache.put(request, networkResponse.clone()); // update cache in background
-        }
-        return networkResponse;
+        const res = await fetch(request);
+        if (res.ok) cache.put(request, res.clone());
+        return res;
     } catch {
         const cached = await cache.match(request);
-        return cached || new Response(JSON.stringify([]), {
-            headers: { 'Content-Type': 'application/json' }
-        });
+        if (cached) return cached;
+        // Return empty JSON array as last resort for API calls
+        return new Response('[]', { headers: { 'Content-Type': 'application/json' } });
     }
 }
 
-// Cache first: serve from cache if available, else fetch and cache
-async function cacheFirstWithNetwork(request, cacheName) {
-    const cache  = await caches.open(cacheName);
-    const cached = await cache.match(request);
-    if (cached) return cached;
-
+// ── Strategy: Network First, offline.html fallback for navigation ─────────────
+async function networkFirstWithOfflineFallback(request) {
+    const cache = await caches.open(SHELL_CACHE);
     try {
-        const networkResponse = await fetch(request);
-        if (networkResponse.ok) cache.put(request, networkResponse.clone());
-        return networkResponse;
+        const res = await fetch(request);
+        if (res.ok) cache.put(request, res.clone());
+        return res;
     } catch {
-        return new Response('Network error', { status: 503 });
-    }
-}
-
-// Cache first with offline.html fallback for navigation requests
-async function cacheFirstWithOfflineFallback(request, cacheName) {
-    const cache  = await caches.open(cacheName);
-    const cached = await cache.match(request);
-    if (cached) return cached;
-
-    try {
-        const networkResponse = await fetch(request);
-        if (networkResponse.ok) cache.put(request, networkResponse.clone());
-        return networkResponse;
-    } catch {
-        // Return offline page for navigation failures
+        // Try to serve from cache first
+        const cached = await cache.match(request)
+                    || await cache.match('./index.html')
+                    || await cache.match('./ar-experience.html');
+        if (cached) return cached;
+        // True offline fallback
         const offline = await cache.match('./offline.html');
-        return offline || new Response('<h1>You are offline</h1>', {
+        return offline || new Response('<h1>Offline</h1>', {
             headers: { 'Content-Type': 'text/html' }
         });
+    }
+}
+
+// ── Strategy: Cache First, network fallback ───────────────────────────────────
+async function cacheFirst(request, cacheName) {
+    const cache  = await caches.open(cacheName);
+    const cached = await cache.match(request);
+    if (cached) return cached;
+    try {
+        const res = await fetch(request);
+        if (res.ok) cache.put(request, res.clone());
+        return res;
+    } catch {
+        return new Response('Network error', { status: 503 });
     }
 }
