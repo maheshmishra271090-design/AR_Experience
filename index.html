@@ -1,879 +1,463 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>AR Vision</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
-<style>
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{
-  --bg:#05050a;--accent:#00f5c4;--accent2:#7b5cfa;
-  --text:#e8e8f0;--muted:#6b6b80;
-  --glow:0 0 40px rgba(0,245,196,0.25);
-}
-html,body{width:100%;height:100%;background:var(--bg);color:var(--text);
-  font-family:'DM Sans',sans-serif;overflow:hidden;
-  -webkit-tap-highlight-color:transparent;-webkit-font-smoothing:antialiased}
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <title>AR Experience</title>
 
-.screen{position:fixed;inset:0;display:flex;flex-direction:column;
-  align-items:center;justify-content:center;
-  transition:opacity .45s ease,transform .45s ease;z-index:10}
-.screen.hidden{opacity:0;pointer-events:none;transform:scale(0.97)}
+    <!-- FIX 3: Preload above-the-fold background images so browser fetches them
+         immediately, not after CSS is parsed. High priority on the hero image. -->
+    <link rel="preload" as="image" href="https://raw.githubusercontent.com/Mahesh2710/ARData/main/DynamicData/poster/welcomeposter.png" fetchpriority="high">
+    <link rel="preload" as="image" href="https://raw.githubusercontent.com/Mahesh2710/ARData/main/DynamicData/poster/welcome.png">
 
-.grid-bg{position:fixed;inset:0;z-index:0;pointer-events:none;
-  background-image:
-    linear-gradient(rgba(0,245,196,.03) 1px,transparent 1px),
-    linear-gradient(90deg,rgba(0,245,196,.03) 1px,transparent 1px);
-  background-size:60px 60px}
-body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
-  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E")}
+    <!-- Preconnect / dns-prefetch for all external origins -->
+    <link rel="preconnect" href="https://aframe.io" crossorigin>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <link rel="preconnect" href="https://akm-img-a-in.tosshub.com" crossorigin>
+    <link rel="dns-prefetch" href="https://raw.githubusercontent.com">
+    <link rel="dns-prefetch" href="https://cdn.aframe.io">
 
-/* ══ SPLASH ══ */
-#splash{background:var(--bg);z-index:50;gap:1.2rem}
-.splash-spinner{width:44px;height:44px;border:2px solid rgba(0,245,196,.15);
-  border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
-@keyframes spin{to{transform:rotate(360deg)}}
-.splash-text{font-size:.7rem;letter-spacing:.25em;text-transform:uppercase;color:var(--muted)}
-.splash-error{background:rgba(255,77,109,.1);border:1px solid rgba(255,77,109,.3);
-  border-radius:12px;padding:1rem 1.5rem;font-size:.82rem;color:#ff8099;
-  max-width:300px;text-align:center;line-height:1.7;white-space:pre-line;display:none}
-.splash-error.visible{display:block}
-.retry-btn{margin-top:.6rem;background:transparent;border:1.5px solid var(--accent);
-  color:var(--accent);padding:.65rem 1.8rem;border-radius:100px;
-  font-family:'DM Sans',sans-serif;font-size:.88rem;cursor:pointer;display:none}
-.retry-btn.visible{display:inline-block}
+    <style>
+        body, html { 
+            margin: 0; padding: 0; width: 100%; height: 100%; 
+            overflow: hidden; font-family: 'Segoe UI', sans-serif; 
+            background-color: #000;
+        }
+        .a-enter-vr, .a-enter-ar { display: none !important; }
 
-/* ══ LANDING ══ */
-#landing{padding:2.5rem;text-align:center;gap:0;
-  background:radial-gradient(ellipse 80% 60% at 50% 40%,rgba(123,92,250,.13) 0%,transparent 70%)}
-.logo-mark{width:80px;height:80px;margin:0 auto 2rem;position:relative}
-.logo-mark svg{width:100%;height:100%}
-.scan-ring{position:absolute;inset:-8px;border:1.5px solid var(--accent);
-  border-radius:50%;opacity:.6;animation:spin-ring 4s linear infinite}
-.scan-ring:nth-child(2){inset:-20px;border-color:var(--accent2);opacity:.28;
-  animation-duration:7s;animation-direction:reverse}
-@keyframes spin-ring{to{transform:rotate(360deg)}}
-.eyebrow{font-size:.68rem;font-weight:500;letter-spacing:.28em;
-  text-transform:uppercase;color:var(--accent);margin-bottom:.9rem}
-#landing h1{font-family:'Bebas Neue',sans-serif;
-  font-size:clamp(3.8rem,15vw,7.5rem);line-height:.9;letter-spacing:.02em;
-  background:linear-gradient(135deg,#fff 25%,var(--accent2) 100%);
-  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
-  background-clip:text;margin-bottom:1rem}
-.exp-pill{display:inline-flex;align-items:center;gap:6px;
-  background:rgba(0,245,196,.08);border:1px solid rgba(0,245,196,.2);
-  border-radius:100px;padding:.3rem .9rem;font-size:.65rem;
-  letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin-bottom:2rem}
-.exp-pill-dot{width:5px;height:5px;border-radius:50%;background:var(--accent);
-  animation:blink 1.4s ease-in-out infinite}
-.landing-sub{font-size:.95rem;color:var(--muted);max-width:280px;
-  line-height:1.65;margin-bottom:2.8rem}
-.play-btn{display:inline-flex;align-items:center;gap:14px;
-  background:var(--accent);color:#000;border:none;
-  padding:1.1rem 2.6rem;border-radius:100px;
-  font-family:'DM Sans',sans-serif;font-size:1rem;font-weight:600;
-  cursor:pointer;animation:pulse-btn 2.6s ease infinite;transition:transform .15s}
-.play-btn:active{transform:scale(.96)}
-@keyframes pulse-btn{
-  0%,100%{box-shadow:0 0 0 0 rgba(0,245,196,.4),var(--glow)}
-  50%{box-shadow:0 0 0 14px rgba(0,245,196,0),var(--glow)}}
-.feature-row{display:flex;gap:1.8rem;margin-top:3rem;opacity:.4}
-.feat{font-size:.68rem;letter-spacing:.1em;text-transform:uppercase}
+        #welcome-page {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 100; 
+            background-image: url('https://raw.githubusercontent.com/Mahesh2710/ARData/main/DynamicData/poster/welcomeposter.png');
+            background-size: cover; background-position: center;
+            display: flex; align-items: flex-end;
+        }
 
-/* ══ PERMISSION ══ */
-#permission{padding:2rem;text-align:center;gap:1.4rem;
-  background:radial-gradient(ellipse 70% 50% at 50% 50%,rgba(255,77,109,.07) 0%,transparent 70%)}
-.cam-icon{width:80px;height:80px;background:rgba(255,255,255,.04);
-  border:1.5px solid rgba(255,255,255,.1);border-radius:22px;
-  display:flex;align-items:center;justify-content:center;
-  animation:float 3s ease-in-out infinite}
-@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
-#permission h2{font-family:'Bebas Neue',sans-serif;font-size:2.4rem;letter-spacing:.05em}
-#perm-status{font-size:.9rem;color:var(--muted);max-width:270px;line-height:1.65;text-align:center}
-.perm-btn{background:transparent;border:1.5px solid var(--accent);color:var(--accent);
-  padding:.9rem 2.2rem;border-radius:100px;font-family:'DM Sans',sans-serif;
-  font-size:.95rem;font-weight:500;cursor:pointer}
-.denied-msg{background:rgba(255,77,109,.1);border:1px solid rgba(255,77,109,.3);
-  border-radius:12px;padding:1rem 1.4rem;font-size:.8rem;color:#ff8099;
-  max-width:290px;line-height:1.6;display:none}
-.denied-msg.visible{display:block}
+        #bottom-sheet {
+            width: 100%; height: 50%; border-radius: 40px 40px 0 0; position: relative;
+            display: flex; flex-direction: column; overflow: hidden;
+            box-shadow: 0 -15px 35px rgba(0,0,0,0.6);
+            background-image: url('https://raw.githubusercontent.com/Mahesh2710/ARData/main/DynamicData/poster/welcome.png');
+            background-size: 100% 100%; 
+            background-repeat: no-repeat;
+            background-position: center;
+            transform: translateY(100%);
+            animation: slideUp 0.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+        }
 
-/* ══ AR SCREEN ══ */
-#ar-screen{background:#000;z-index:1}
-#camera-feed{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-#ar-canvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:2}
-#detection-frame{position:absolute;border:2px solid var(--accent);border-radius:8px;
-  box-shadow:0 0 24px rgba(0,245,196,.5),inset 0 0 24px rgba(0,245,196,.06);
-  display:none;z-index:4;pointer-events:none;transition:all .1s ease}
+        #sheet-content {
+            flex: 1; padding: 40px 30px;
+            background: linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,0.7) 100%);
+            display: flex; flex-direction: column; justify-content: center;
+        }
 
-/* video overlay — NO transition on show so it's instant */
-#ar-video-overlay{
-  position:absolute;display:none;z-index:3;
-  border-radius:10px;box-shadow:0 0 50px rgba(0,245,196,.25);
-  pointer-events:none;transform-origin:center;background:#000;
-  opacity:1;transform:none}
+        #sheet-footer {
+            background: #000; padding: 20px 30px; display: flex;
+            justify-content: space-between; align-items: center; border-top: 2px solid #FFF;
+        }
 
-/* 3D */
-#three-container{position:absolute;inset:0;z-index:3;pointer-events:none;display:none}
-#three-container canvas{width:100%!important;height:100%!important}
+        .footer-text h2 { color: white; margin: 0; font-size: 1.2rem; }
+        .footer-text p { color: #888; margin: 5px 0 0 0; font-size: 0.9rem; }
 
-/* HUD */
-.ar-hud{position:absolute;inset:0;pointer-events:none;z-index:5}
-.hud-corner{position:absolute;width:26px;height:26px;
-  border-color:var(--accent);border-style:solid;opacity:.7}
-.hud-corner.tl{top:18px;left:18px;border-width:2px 0 0 2px;border-radius:4px 0 0 0}
-.hud-corner.tr{top:18px;right:18px;border-width:2px 2px 0 0;border-radius:0 4px 0 0}
-.hud-corner.bl{bottom:18px;left:18px;border-width:0 0 2px 2px;border-radius:0 0 0 4px}
-.hud-corner.br{bottom:18px;right:18px;border-width:0 2px 2px 0;border-radius:0 0 4px 0}
-.scan-line{position:absolute;left:0;right:0;height:2px;
-  background:linear-gradient(90deg,transparent,var(--accent),transparent);
-  opacity:0;animation:scan-sweep 3s ease-in-out infinite;z-index:6}
-@keyframes scan-sweep{
-  0%{top:8%;opacity:0}8%{opacity:.7}92%{opacity:.35}100%{top:92%;opacity:0}}
-.hud-top{position:absolute;top:0;left:60px;right:60px;
-  display:flex;align-items:center;justify-content:center;padding-top:24px;gap:8px}
-.hud-title{font-size:.6rem;letter-spacing:.22em;text-transform:uppercase;
-  color:var(--accent);opacity:.85}
-.status-dot{width:6px;height:6px;border-radius:50%;background:var(--accent);
-  flex-shrink:0;animation:blink 1.5s ease-in-out infinite}
-@keyframes blink{0%,100%{opacity:1}50%{opacity:.15}}
-.exp-name-badge{position:absolute;top:52px;left:50%;
-  transform:translateX(-50%) translateY(-6px);
-  background:rgba(0,245,196,.12);border:1px solid rgba(0,245,196,.35);
-  border-radius:100px;padding:.32rem 1rem;
-  font-size:.65rem;letter-spacing:.14em;text-transform:uppercase;
-  color:var(--accent);opacity:0;transition:opacity .3s,transform .3s;
-  white-space:nowrap;pointer-events:none}
-.exp-name-badge.visible{opacity:1;transform:translateX(-50%) translateY(0)}
-.hint-bar{position:absolute;bottom:38px;left:50%;transform:translateX(-50%);
-  background:rgba(0,0,0,.58);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
-  border:1px solid rgba(255,255,255,.1);border-radius:100px;
-  padding:.56rem 1.4rem;font-size:.76rem;color:var(--muted);
-  letter-spacing:.05em;white-space:nowrap;transition:opacity .3s;pointer-events:none}
-.orient-pill{position:absolute;top:22px;right:18px;
-  background:rgba(0,0,0,.5);backdrop-filter:blur(8px);
-  border:1px solid rgba(255,255,255,.1);border-radius:5px;
-  padding:.2rem .52rem;font-size:.56rem;letter-spacing:.12em;
-  text-transform:uppercase;color:var(--muted);display:none}
-.scan-count{position:absolute;bottom:38px;right:18px;
-  background:rgba(0,0,0,.5);backdrop-filter:blur(8px);
-  border:1px solid rgba(255,255,255,.08);border-radius:8px;
-  padding:.4rem .7rem;text-align:center}
-.scan-count-num{font-family:'Bebas Neue',sans-serif;font-size:1.1rem;
-  color:var(--accent);line-height:1}
-.scan-count-lbl{font-size:.48rem;letter-spacing:.14em;text-transform:uppercase;
-  color:var(--muted);margin-top:1px}
-.ar-loader{display:none;position:absolute;inset:0;background:rgba(0,0,0,.8);
-  z-index:20;align-items:center;justify-content:center;flex-direction:column;gap:.9rem}
-.ar-loader.active{display:flex}
-.spinner{width:40px;height:40px;border:2px solid rgba(0,245,196,.18);
-  border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
-.loader-text{font-size:.72rem;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}
+        #play-button {
+            width: 110px; height: 50px; background: #4185f4; border: none;
+            border-radius: 25px; cursor: pointer; display: none;
+            justify-content: center; align-items: center; color: white; font-weight: bold;
+            box-shadow: 0 4px 15px rgba(65, 133, 244, 0.4);
+        }
 
-#debug-panel{position:fixed;bottom:0;left:0;right:0;background:rgba(0,0,0,.92);
-  border-top:1px solid rgba(0,245,196,.18);padding:.6rem 1rem;z-index:100;
-  font-size:.58rem;color:var(--accent);font-family:monospace;
-  display:none;max-height:110px;overflow-y:auto}
-#debug-panel.visible{display:block}
-</style>
+        #loading-overlay {
+            display: none;
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.75); z-index: 150;
+            flex-direction: column; justify-content: center; align-items: center; gap: 16px;
+        }
+        #loading-overlay .spinner {
+            width: 48px; height: 48px;
+            border: 4px solid rgba(255,255,255,0.2);
+            border-top-color: #4185f4;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        #loading-overlay p { color: #fff; font-size: 0.95rem; margin: 0; }
+
+        #scanner-ui {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            display: none; flex-direction: column; justify-content: center; align-items: center;
+            z-index: 50; pointer-events: none;
+        }
+        .scanner-frame { width: 75vw; height: 75vw; position: relative; display: flex; justify-content: center; align-items: center; }
+        .scanner-img { width: 70%; opacity: 0.6; }
+        .scanner-line { position: absolute; width: 100%; height: 4px; background: #a3ff00; top: 0; animation: scan 2s linear infinite; }
+        
+        #video-container {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 85%; z-index: 40; display: none; 
+            flex-direction: column; justify-content: center; align-items: center;
+        }
+        #video-wrapper { position: relative; width: 100%; box-shadow: 0 10px 40px rgba(0,0,0,0.8); border-radius: 20px; }
+        #video-container video { width: 100%; border: 3px solid #FFF; border-radius: 20px; display: block; }
+
+        #close-sticky {
+            position: absolute; top: -15px; right: -15px; width: 40px; height: 40px; 
+            background: #ff3b30; color: white; border-radius: 50%; border: 2px solid white;
+            font-size: 24px; font-weight: bold; cursor: pointer; z-index: 100;
+            display: flex; justify-content: center; align-items: center;
+        }
+
+        #buy-now-cta {
+            position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+            width: 280px; height: 70px; display: none; z-index: 60;
+            background-size: contain; background-repeat: no-repeat; background-position: center;
+        }
+
+        #error-screen {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: #1a1a1a; z-index: 200; flex-direction: column; 
+            justify-content: center; align-items: center; color: white; text-align: center; padding: 20px;
+        }
+
+        @keyframes scan { 0% { top: 0; } 100% { top: 100%; } }
+        @keyframes slideUp { to { transform: translateY(0); } }
+        @keyframes fadeInRight { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
 </head>
 <body>
-<div class="grid-bg"></div>
 
-<!-- SPLASH -->
-<div class="screen" id="splash">
-  <div class="splash-spinner"></div>
-  <span class="splash-text" id="splash-text">Loading…</span>
-  <div class="splash-error" id="splash-error"></div>
-  <button class="retry-btn" id="retry-btn" onclick="boot()">Retry</button>
-</div>
-
-<!-- LANDING -->
-<div class="screen hidden" id="landing">
-  <div class="logo-mark">
-    <div class="scan-ring"></div>
-    <div class="scan-ring"></div>
-    <svg viewBox="0 0 80 80" fill="none">
-      <rect x="18" y="18" width="44" height="44" rx="7"
-        stroke="#00f5c4" stroke-width="1.6" fill="none"/>
-      <circle cx="40" cy="40" r="10" fill="#7b5cfa" opacity=".85"/>
-      <circle cx="40" cy="40" r="4" fill="#00f5c4"/>
-      <line x1="40" y1="4"  x2="40" y2="15" stroke="#00f5c4" stroke-width="1.5" opacity=".4"/>
-      <line x1="40" y1="65" x2="40" y2="76" stroke="#00f5c4" stroke-width="1.5" opacity=".4"/>
-      <line x1="4"  y1="40" x2="15" y2="40" stroke="#00f5c4" stroke-width="1.5" opacity=".4"/>
-      <line x1="65" y1="40" x2="76" y2="40" stroke="#00f5c4" stroke-width="1.5" opacity=".4"/>
-    </svg>
-  </div>
-  <p class="eyebrow">Augmented Reality</p>
-  <h1>AR<br>VISION</h1>
-  <div class="exp-pill">
-    <div class="exp-pill-dot"></div>
-    <span id="exp-count-label">Loading…</span>
-  </div>
-  <p class="landing-sub">Point your camera at any target image to instantly unlock its AR experience.</p>
-  <!--
-    FIX: onclick handler = user gesture context.
-    We call unlockAudio() HERE so unmuted video.play() works later
-    even though it's called from a RAF/setTimeout (which loses gesture context).
-  -->
-  <button class="play-btn" id="play-btn" onclick="onStartPressed()">
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-      <path d="M3 2L13 8L3 14V2Z" fill="black"/>
-    </svg>
-    Start AR
-  </button>
-  <div class="feature-row">
-    <span class="feat">📱 iOS &amp; Android</span>
-    <span class="feat">🎥 Video &amp; 3D</span>
-    <span class="feat">⚡ Auto Detect</span>
-  </div>
-</div>
-
-<!-- PERMISSION -->
-<div class="screen hidden" id="permission">
-  <div class="cam-icon">
-    <svg width="34" height="34" viewBox="0 0 34 34" fill="none">
-      <rect x="3" y="10" width="28" height="19" rx="3"
-        stroke="#e8e8f0" stroke-width="1.5" fill="none"/>
-      <circle cx="17" cy="19" r="5.5" stroke="#e8e8f0" stroke-width="1.5" fill="none"/>
-      <path d="M12 10V9a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1"
-        stroke="#e8e8f0" stroke-width="1.5"/>
-      <circle cx="27" cy="14" r="1.5" fill="#00f5c4"/>
-    </svg>
-  </div>
-  <h2>Camera Access</h2>
-  <p id="perm-status">
-    AR Vision needs your camera to detect target images and overlay content in real-time.
-  </p>
-  <div class="denied-msg" id="denied-msg">
-    ⚠️ Camera blocked. Go to Settings → Site permissions → Camera, allow this site, then tap Try Again.
-  </div>
-  <!--
-    FIX: permission button also calls unlockAudio() — covers the case where
-    the user had to go through the permission screen (gesture is here).
-  -->
-  <button class="perm-btn" id="perm-btn" onclick="unlockAudio(); requestCamera()">
-    Allow Camera
-  </button>
-</div>
-
-<!-- AR SCREEN -->
-<div class="screen hidden" id="ar-screen">
-  <video id="camera-feed" autoplay playsinline muted></video>
-  <canvas id="ar-canvas"></canvas>
-  <div id="detection-frame"></div>
-
-  <!--
-    FIX: single persistent <video> element.
-    src is set ONLY when a real target is matched — never touched during boot.
-    muted=false by default — unmuted play is unlocked via gesture on Start button.
-  -->
-  <video id="ar-video-overlay" playsinline loop></video>
-
-  <div id="three-container"></div>
-
-  <div class="ar-hud">
-    <div class="hud-corner tl"></div><div class="hud-corner tr"></div>
-    <div class="hud-corner bl"></div><div class="hud-corner br"></div>
-    <div class="scan-line"></div>
-    <div class="hud-top">
-      <div class="status-dot"></div>
-      <span class="hud-title">AR VISION</span>
+    <div id="welcome-page">
+        <div id="bottom-sheet">
+            <div id="sheet-content"></div>
+            <div id="sheet-footer">
+                <div class="footer-text">
+                    <h2 id="campaign-title">Checking Campaign...</h2>
+                    <p>Experiencing - Reality</p>
+                </div>
+                <button id="play-button">Play</button>
+            </div>
+        </div>
     </div>
-    <div class="exp-name-badge" id="exp-name-badge">TARGET LOCKED</div>
-    <div class="hint-bar" id="hint-bar">Point camera at a target image</div>
-    <div class="orient-pill" id="orient-pill"></div>
-    <div class="scan-count">
-      <div class="scan-count-num" id="scan-count-num">—</div>
-      <div class="scan-count-lbl">Targets</div>
+
+    <div id="loading-overlay">
+        <div class="spinner"></div>
+        <p id="loading-msg">Loading AR Experience…</p>
     </div>
-  </div>
-
-  <div class="ar-loader" id="ar-loader">
-    <div class="spinner"></div>
-    <span class="loader-text" id="loader-text">Initializing…</span>
-  </div>
-</div>
-
-<div id="debug-panel"></div>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script>
-// ═══════════════════════════════════════════════════════
-//  AR VISION  v5.0
-//
-//  KEY FIXES vs v4:
-//  1. Audio unlocked synchronously in the "Start AR" gesture click
-//     → unmuted video.play() works from RAF/setTimeout on all browsers
-//  2. Video src is NEVER set during boot — only set on real match
-//     → no "default video playing on load"
-//  3. triggerDelayMs removed from video path — play is instant on match
-//  4. video.currentTime = 0 before every play → always from beginning
-//  5. loop attribute set on the <video> element directly
-//  6. hideVideo() is synchronous (no 380ms timeout race)
-//  7. activeVideoSrc guard: if same URL is already playing, don't restart
-// ═══════════════════════════════════════════════════════
-
-const CONFIG_URL    = 'https://jsonmap.com/api/mock/dummy';
-const ANALYZE_EVERY = 6;    // analyse every N rAF frames
-const LOST_FRAMES   = 15;   // frames before declaring target lost
-
-let ALL_EXPS       = [];
-let expDescriptors = [];    // parallel array of {hist,edge} | null
-
-let activeExp      = null;  // currently playing experience
-let activeVideoSrc = '';    // currently playing video src (prevents restart)
-let lostCount      = 0;
-
-let stream         = null;
-let isDetecting    = false;
-let animFrameId    = null;
-let frameCount     = 0;
-let currentScreen  = 'splash';
-let audioUnlocked  = false; // true after gesture-triggered unlock
-
-// Three.js
-let threeScene=null, threeCamera=null, threeRenderer=null;
-let threeModel=null, threeAnimMixer=null, threeAnimClock=null;
-let threeRafId=null, threeNormScale=1.0;
-let gltfLoaderReady=false, gltfLoaderLoading=false;
-
-const $ = id => document.getElementById(id);
-
-// ═══════════════════════════════════════════════════════
-//  AUDIO UNLOCK
-//  Must be called synchronously inside a user gesture handler.
-//  Creates and immediately suspends an AudioContext — this marks
-//  the page as "user has interacted" so subsequent video.play()
-//  calls (even from async contexts) succeed with sound on all browsers.
-// ═══════════════════════════════════════════════════════
-function unlockAudio() {
-  if (audioUnlocked) return;
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    // Play a silent buffer to fully unlock
-    const buf = ctx.createBuffer(1, 1, 22050);
-    const src = ctx.createBufferSource();
-    src.buffer = buf;
-    src.connect(ctx.destination);
-    src.start(0);
-    ctx.resume().catch(()=>{});
-    audioUnlocked = true;
-    dbg('Audio unlocked');
-  } catch(e) {
-    dbg('Audio unlock failed (non-fatal):', e.message);
-  }
-}
-
-// ═══════════════════════════════════════════════════════
-//  BOOT
-// ═══════════════════════════════════════════════════════
-async function boot() {
-  setSplashText('Loading config…');
-  $('splash-error').classList.remove('visible');
-  $('retry-btn').classList.remove('visible');
-  try {
-    const res = await fetch(CONFIG_URL);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const raw = await res.json();
-    if (!raw.experiences?.length) throw new Error('"experiences" array missing or empty.');
-
-    ALL_EXPS = raw.experiences.map(normalizeExp);
-    dbg(`Loaded ${ALL_EXPS.length} experiences`);
-
-    setSplashText('Preparing targets…');
-    expDescriptors = await Promise.all(ALL_EXPS.map(e => loadDescriptor(e.target.imageUrl)));
-
-    const realCount = expDescriptors.filter(Boolean).length;
-    $('exp-count-label').textContent = `${realCount} target${realCount !== 1 ? 's' : ''} loaded`;
-    $('scan-count-num').textContent  = realCount;
-
-    showScreen('landing');
-  } catch(err) {
-    console.error(err);
-    $('splash-error').textContent =
-      `Failed to load config\n\n${err.message}\n\n${CONFIG_URL}`;
-    $('splash-error').classList.add('visible');
-    $('retry-btn').classList.add('visible');
-  }
-}
-
-function setSplashText(t) { $('splash-text').textContent = t; }
-
-// ═══════════════════════════════════════════════════════
-//  NORMALISE
-// ═══════════════════════════════════════════════════════
-function normalizeExp(e) {
-  return {
-    id:   e.id   || ('exp-' + Math.random().toString(36).slice(2,7)),
-    name: e.name || 'Unnamed',
-    target: {
-      imageUrl:       e.target?.imageUrl       || '',
-      label:          e.target?.label          || 'Target',
-      matchThreshold: +(e.target?.matchThreshold ?? 0.55),
-    },
-    content: {
-      mode: e.content?.mode === 'model3d' ? 'model3d' : 'video',
-      video: {
-        url:         e.content?.video?.url         || '',
-        orientation: e.content?.video?.orientation === 'portrait' ? 'portrait' : 'landscape',
-        loop:        e.content?.video?.loop  ?? true,
-        muted:       e.content?.video?.muted ?? false,
-      },
-      model3d: {
-        url:            e.content?.model3d?.url            || '',
-        scale:          +(e.content?.model3d?.scale        ?? 1.0),
-        autoRotate:        e.content?.model3d?.autoRotate  ?? true,
-        rotationSpeedX: +(e.content?.model3d?.rotationSpeedX ?? 0.008),
-        rotationSpeedY: +(e.content?.model3d?.rotationSpeedY ?? 0.012),
-      },
-    },
-  };
-}
-
-// ═══════════════════════════════════════════════════════
-//  DESCRIPTORS
-// ═══════════════════════════════════════════════════════
-async function loadDescriptor(url) {
-  if (!url) return null;
-  return new Promise(resolve => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      const c = Object.assign(document.createElement('canvas'),{width:64,height:64});
-      c.getContext('2d').drawImage(img,0,0,64,64);
-      resolve(extractDesc(c.getContext('2d').getImageData(0,0,64,64)));
-    };
-    img.onerror = () => { dbg('Descriptor fail:', url); resolve(null); };
-    img.src = url;
-  });
-}
-
-function extractDesc(idata) {
-  const d=idata.data, w=64, h=64;
-  const hist=new Float32Array(32);
-  let edgeSum=0;
-  for(let y=1;y<h-1;y++){
-    for(let x=1;x<w-1;x++){
-      const i=(y*w+x)*4, il=(y*w+(x-1))*4, ir=(y*w+(x+1))*4;
-      const it=((y-1)*w+x)*4, ib=((y+1)*w+x)*4;
-      hist[Math.floor((d[i]*.299+d[i+1]*.587+d[i+2]*.114)/255*31)]++;
-      const gx=(d[ir]-d[il])/255, gy=(d[ib]-d[it])/255;
-      edgeSum+=Math.sqrt(gx*gx+gy*gy);
-    }
-  }
-  const tot=w*h;
-  for(let i=0;i<32;i++) hist[i]/=tot;
-  return {hist, edge:edgeSum/tot};
-}
-
-function simScore(a,b){
-  let hd=0;
-  for(let i=0;i<32;i++) hd+=Math.abs(a.hist[i]-b.hist[i]);
-  return Math.max(0,Math.min(1,1-(hd/2)-Math.abs(a.edge-b.edge)*.5));
-}
-
-// ═══════════════════════════════════════════════════════
-//  SCREEN NAV
-// ═══════════════════════════════════════════════════════
-function showScreen(id) {
-  document.querySelectorAll('.screen').forEach(s=>s.classList.add('hidden'));
-  $(id).classList.remove('hidden');
-  currentScreen = id;
-}
-
-// ═══════════════════════════════════════════════════════
-//  START BUTTON — gesture context lives HERE
-// ═══════════════════════════════════════════════════════
-function onStartPressed() {
-  unlockAudio();   // ← synchronous, inside gesture — audio unlocked for entire session
-  startFlow();
-}
-
-async function startFlow() {
-  const state = await navigator.permissions?.query({name:'camera'}).catch(()=>null);
-  state?.state === 'granted' ? launchAR() : showScreen('permission');
-}
-
-async function requestCamera() {
-  const btn = $('perm-btn');
-  $('denied-msg').classList.remove('visible');
-  btn.textContent = 'Requesting…'; btn.disabled = true;
-  try {
-    const s = await navigator.mediaDevices.getUserMedia({video:true});
-    s.getTracks().forEach(t=>t.stop());
-    launchAR();
-  } catch {
-    btn.textContent = 'Try Again'; btn.disabled = false;
-    $('perm-status').textContent = 'Camera access required. Please allow and try again.';
-    $('denied-msg').classList.add('visible');
-  }
-}
-
-// ═══════════════════════════════════════════════════════
-//  LAUNCH AR
-// ═══════════════════════════════════════════════════════
-async function launchAR() {
-  showScreen('ar-screen');
-  $('ar-loader').classList.add('active');
-  $('loader-text').textContent = 'Starting camera…';
-  try {
-    stream = await navigator.mediaDevices.getUserMedia({
-      video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}}
-    });
-    const vid = $('camera-feed');
-    vid.srcObject = stream;
-    await new Promise(r=>{vid.onloadedmetadata=r;});
-    await vid.play();
-
-    const c=$('ar-canvas');
-    c.width=vid.videoWidth||innerWidth; c.height=vid.videoHeight||innerHeight;
-
-    $('ar-loader').classList.remove('active');
-    startDetectionLoop();
-  } catch(err) {
-    console.error(err);
-    $('ar-loader').classList.remove('active');
-    showScreen('permission');
-    $('perm-status').textContent = 'Could not access camera. Check permissions.';
-    $('denied-msg').classList.add('visible');
-    $('perm-btn').textContent='Try Again'; $('perm-btn').disabled=false;
-  }
-}
-
-// ═══════════════════════════════════════════════════════
-//  DETECTION LOOP
-// ═══════════════════════════════════════════════════════
-function startDetectionLoop() {
-  isDetecting=true; frameCount=0;
-  (function loop(){
-    if(!isDetecting) return;
-    if(++frameCount % ANALYZE_EVERY === 0) analyzeFrame();
-    animFrameId=requestAnimationFrame(loop);
-  })();
-}
-
-function analyzeFrame() {
-  const vid=$('camera-feed');
-  if(vid.readyState<2) return;
-
-  const off=Object.assign(document.createElement('canvas'),{width:64,height:64});
-  const ctx=off.getContext('2d');
-  const sw=Math.min(vid.videoWidth,320), sh=Math.min(vid.videoHeight,320);
-  ctx.drawImage(vid,(vid.videoWidth-sw)/2,(vid.videoHeight-sh)/2,sw,sh,0,0,64,64);
-  const fd=extractDesc(ctx.getImageData(0,0,64,64));
-
-  let bestScore=-1, bestIdx=-1;
-  for(let i=0;i<ALL_EXPS.length;i++){
-    const desc=expDescriptors[i];
-    if(!desc) continue;
-    const s=simScore(desc,fd);
-    if(s>bestScore){bestScore=s; bestIdx=i;}
-  }
-
-  const thr = bestIdx>=0 ? ALL_EXPS[bestIdx].target.matchThreshold : 0.55;
-  if(IS_DEBUG && bestIdx>=0)
-    dbg(`match=${ALL_EXPS[bestIdx].id} score=${bestScore.toFixed(3)} thr=${thr}`);
-
-  if(bestIdx>=0 && bestScore>thr) onTargetMatched(bestIdx);
-  else                             onNoMatch();
-}
-
-// ═══════════════════════════════════════════════════════
-//  MATCH / LOST
-// ═══════════════════════════════════════════════════════
-function onTargetMatched(idx) {
-  lostCount=0;
-  const exp=ALL_EXPS[idx];
-
-  // Show detection frame
-  const sz=Math.min(innerWidth,innerHeight)*.52;
-  const fr=$('detection-frame');
-  Object.assign(fr.style,{
-    display:'block', width:sz+'px', height:sz*.62+'px',
-    left:(innerWidth/2-sz/2)+'px', top:(innerHeight/2-sz*.31)+'px',
-  });
-
-  // Already showing this exact experience → nothing to do
-  if(activeExp?.id===exp.id) return;
-
-  dbg('Trigger:', exp.id);
-
-  // Stop whatever is currently active
-  if(activeExp) stopActiveContent();
-
-  activeExp=exp;
-
-  // HUD
-  $('exp-name-badge').textContent = exp.target.label||exp.name;
-  $('exp-name-badge').classList.add('visible');
-  $('hint-bar').style.opacity='0';
-
-  const op=$('orient-pill');
-  if(exp.content.mode==='video'){
-    op.textContent=exp.content.video.orientation.toUpperCase();
-    op.style.display='block';
-  } else {
-    op.style.display='none';
-  }
-
-  // ── INSTANT trigger — no delay ──
-  if(exp.content.mode==='video') showVideo(exp);
-  else                            showModel(exp);
-}
-
-function onNoMatch() {
-  lostCount++;
-  if(lostCount < LOST_FRAMES) return;
-
-  $('detection-frame').style.display='none';
-  if(!activeExp) return;
-
-  stopActiveContent();
-  activeExp=null;
-  activeVideoSrc='';
-  lostCount=0;
-
-  $('exp-name-badge').classList.remove('visible');
-  $('hint-bar').style.opacity='1';
-  $('orient-pill').style.display='none';
-}
-
-function stopActiveContent() {
-  if(!activeExp) return;
-  if(activeExp.content.mode==='video') stopVideo();
-  else                                  teardownThreeJS();
-}
-
-// ═══════════════════════════════════════════════════════
-//  VIDEO
-//  FIX: no opacity/scale animation — just show immediately.
-//  FIX: currentTime=0 so it always starts from beginning.
-//  FIX: muted=false (unmuted works because audio was unlocked on Start).
-//  FIX: activeVideoSrc guard — if same video already playing, don't restart.
-// ═══════════════════════════════════════════════════════
-function videoSize(o) {
-  const vw=innerWidth, vh=innerHeight;
-  let w,h;
-  if(o==='portrait'){
-    h=Math.min(vh*.82,680); w=h*(9/16);
-    if(w>vw*.88){w=vw*.88; h=w*(16/9);}
-  } else {
-    w=Math.min(vw*.88,560); h=w*(9/16);
-    if(h>vh*.72){h=vh*.72; w=h*(16/9);}
-  }
-  return {w:Math.round(w), h:Math.round(h)};
-}
-
-function showVideo(exp) {
-  const v=$('ar-video-overlay'), vc=exp.content.video;
-
-  // Guard: same video already playing → do nothing (don't restart)
-  if(activeVideoSrc===vc.url && !v.paused) return;
-
-  const {w,h}=videoSize(vc.orientation);
-
-  // Position and size
-  Object.assign(v.style,{
-    display:'block',
-    width:w+'px', height:h+'px',
-    left:(innerWidth/2-w/2)+'px',
-    top:(innerHeight/2-h/2)+'px',
-    opacity:'1', transform:'none', transition:'none',
-  });
-
-  // Set video properties
-  v.loop        = vc.loop;
-  v.muted       = vc.muted;   // false by default → unmuted (audio unlocked on Start)
-  v.currentTime = 0;           // always from beginning
-
-  // Only change src if different (avoids re-buffering)
-  if(activeVideoSrc !== vc.url) {
-    v.src = vc.url;
-    activeVideoSrc = vc.url;
-  }
-
-  // Play — audio already unlocked so this works unmuted on all platforms
-  v.play().catch(err => {
-    dbg('play() failed, retrying muted:', err.message);
-    v.muted = true;
-    v.play().catch(e => dbg('muted play also failed:', e.message));
-  });
-
-  dbg(`showVideo: ${vc.orientation} ${w}×${h} muted=${v.muted}`);
-}
-
-function stopVideo() {
-  const v=$('ar-video-overlay');
-  v.pause();
-  v.style.display='none';
-  // Keep src intact so next match of same target is instant (no re-buffer)
-  // activeVideoSrc is cleared in onNoMatch only when exp changes
-}
-
-// ═══════════════════════════════════════════════════════
-//  THREE.JS 3D
-// ═══════════════════════════════════════════════════════
-function showModel(exp) {
-  const mc=exp.content.model3d;
-  teardownThreeJS();
-
-  const cont=$('three-container');
-  threeScene=new THREE.Scene();
-  threeCamera=new THREE.PerspectiveCamera(60,innerWidth/innerHeight,.1,1000);
-  threeCamera.position.set(0,2,5); threeCamera.lookAt(0,0,0);
-  threeRenderer=new THREE.WebGLRenderer({antialias:true,alpha:true});
-  threeRenderer.setSize(innerWidth,innerHeight);
-  threeRenderer.setPixelRatio(Math.min(devicePixelRatio,2));
-  threeRenderer.setClearColor(0,0);
-  cont.appendChild(threeRenderer.domElement);
-  cont.style.display='block';
-
-  threeScene.add(new THREE.AmbientLight(0xffffff,.4));
-  const dl=new THREE.DirectionalLight(0x00f5c4,1.2);
-  dl.position.set(5,8,5); threeScene.add(dl);
-  const pl=new THREE.PointLight(0x7b5cfa,1.5,10);
-  pl.position.set(-3,3,3); threeScene.add(pl);
-
-  threeAnimClock=new THREE.Clock();
-  const rx=mc.rotationSpeedX, ry=mc.rotationSpeedY, doRot=mc.autoRotate;
-  (function rl(){
-    threeRafId=requestAnimationFrame(rl);
-    if(threeAnimMixer) threeAnimMixer.update(threeAnimClock.getDelta());
-    if(threeModel&&doRot){threeModel.rotation.x+=rx; threeModel.rotation.y+=ry;}
-    if(threeRenderer&&threeScene&&threeCamera)
-      threeRenderer.render(threeScene,threeCamera);
-  })();
-
-  mc.url ? loadGLB(mc) : buildFallbackMesh(mc);
-}
-
-function teardownThreeJS() {
-  if(threeRafId){cancelAnimationFrame(threeRafId); threeRafId=null;}
-  if(threeRenderer){
-    threeRenderer.dispose();
-    const c=threeRenderer.domElement;
-    if(c.parentNode) c.parentNode.removeChild(c);
-    threeRenderer=null;
-  }
-  if(threeScene){
-    threeScene.traverse(o=>{
-      if(o.geometry) o.geometry.dispose();
-      if(o.material){
-        if(Array.isArray(o.material)) o.material.forEach(m=>m.dispose());
-        else o.material.dispose();
-      }
-    });
-    threeScene=null;
-  }
-  threeCamera=null; threeModel=null;
-  threeAnimMixer=null; threeAnimClock=null; threeNormScale=1.0;
-  $('three-container').style.display='none';
-}
-
-function buildFallbackMesh(mc) {
-  const geo=new THREE.TorusKnotGeometry(.8*mc.scale,.25,100,16);
-  const mat=new THREE.MeshStandardMaterial({
-    color:0x00f5c4,metalness:.7,roughness:.2,emissive:0x002a22,emissiveIntensity:.3});
-  threeModel=new THREE.Mesh(geo,mat);
-  threeModel.scale.set(0,0,0); threeScene.add(threeModel);
-  tweenIn(mc.scale);
-}
-
-function loadGLB(mc) {
-  const doLoad=()=>{
-    new THREE.GLTFLoader().load(mc.url, gltf=>{
-      threeModel=gltf.scene;
-      const box=new THREE.Box3().setFromObject(threeModel);
-      const sz=box.getSize(new THREE.Vector3()).length();
-      threeNormScale=sz>0?(2.5*mc.scale/sz):mc.scale;
-      threeModel.position.sub(box.getCenter(new THREE.Vector3()));
-      threeModel.scale.set(0,0,0); threeScene.add(threeModel);
-      if(gltf.animations?.length){
-        threeAnimMixer=new THREE.AnimationMixer(threeModel);
-        gltf.animations.forEach(c=>threeAnimMixer.clipAction(c).play());
-      }
-      tweenIn(threeNormScale);
-    }, undefined, ()=>buildFallbackMesh(mc));
-  };
-  if(gltfLoaderReady){doLoad();}
-  else if(!gltfLoaderLoading){
-    gltfLoaderLoading=true;
-    const s=document.createElement('script');
-    s.src='https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/js/loaders/GLTFLoader.js';
-    s.onload=()=>{gltfLoaderReady=true; gltfLoaderLoading=false; doLoad();};
-    s.onerror=()=>{gltfLoaderLoading=false; buildFallbackMesh(mc);};
-    document.head.appendChild(s);
-  } else {
-    const p=setInterval(()=>{if(gltfLoaderReady){clearInterval(p); doLoad();}},80);
-  }
-}
-
-function tweenIn(target) {
-  if(!threeModel) return;
-  threeModel.scale.set(0,0,0);
-  const t=setInterval(()=>{
-    const s=threeModel.scale.x;
-    if(s<target){const n=Math.min(target,s+target*.08); threeModel.scale.set(n,n,n);}
-    else clearInterval(t);
-  },16);
-}
-
-// ═══════════════════════════════════════════════════════
-//  CLEANUP
-// ═══════════════════════════════════════════════════════
-function stopAR() {
-  isDetecting=false;
-  if(animFrameId){cancelAnimationFrame(animFrameId); animFrameId=null;}
-  if(stream){stream.getTracks().forEach(t=>t.stop()); stream=null;}
-  stopVideo(); teardownThreeJS();
-  activeExp=null; activeVideoSrc=''; lostCount=0; frameCount=0;
-  $('detection-frame').style.display='none';
-  $('exp-name-badge').classList.remove('visible');
-  $('hint-bar').style.opacity='1';
-}
-
-document.addEventListener('visibilitychange',()=>{
-  if(currentScreen!=='ar-screen') return;
-  if(document.hidden){
-    $('camera-feed').pause();
-    $('ar-video-overlay').pause();
-  } else {
-    $('camera-feed').play().catch(()=>{});
-    const v=$('ar-video-overlay');
-    if(activeExp?.content.mode==='video' && v.style.display!=='none')
-      v.play().catch(()=>{});
-  }
-});
-
-addEventListener('resize',()=>{
-  if(threeCamera&&threeRenderer){
-    threeCamera.aspect=innerWidth/innerHeight;
-    threeCamera.updateProjectionMatrix();
-    threeRenderer.setSize(innerWidth,innerHeight);
-  }
-});
-
-// ═══════════════════════════════════════════════════════
-//  DEBUG  ?debug=1
-// ═══════════════════════════════════════════════════════
-const IS_DEBUG=new URLSearchParams(location.search).has('debug');
-let dbgLines=[];
-function dbg(...a){
-  if(!IS_DEBUG) return;
-  const msg=a.map(x=>typeof x==='object'?JSON.stringify(x):x).join(' ');
-  dbgLines.unshift(`[${new Date().toISOString().slice(11,23)}] ${msg}`);
-  if(dbgLines.length>30) dbgLines.pop();
-  const p=$('debug-panel');
-  p.classList.add('visible');
-  p.textContent=dbgLines.join('\n');
-}
-
-addEventListener('DOMContentLoaded', boot);
-</script>
+
+    <div id="scanner-ui">
+        <div class="scanner-frame">
+            <img id="dynamic-scanner-img" src="" class="scanner-img">
+            <div class="scanner-line"></div>
+        </div>
+        <div style="color:white; margin-top:20px; font-weight:bold; text-shadow: 0 2px 4px #000;">SCAN THE PRODUCT</div>
+    </div>
+
+    <div id="video-container">
+        <div id="video-wrapper">
+            <button id="close-sticky">×</button>
+        </div>
+    </div>
+
+    <div id="error-screen">
+        <div style="font-size: 50px;">⚠️</div>
+        <h2 id="error-title">Campaign Not Found</h2>
+        <p id="error-msg">The link might be expired or incorrect.</p>
+        <button onclick="location.reload()" style="margin-top:20px; padding:10px 25px; border-radius:20px; border:none; background:#4185f4; color:white; font-weight:bold;">Try Again</button>
+    </div>
+
+    <a href="#" target="_blank" id="buy-now-cta"></a>
+    <div id="ar-scene-container"></div>
+
+    <script>
+        const API_URL = "https://akm-img-a-in.tosshub.com/app/at-app/at_dev/newicons/AR_expierence.json#?jnsdk";
+
+        // FIX 10: Cache ALL DOM references once at startup — no re-querying inside events
+        const playBtn           = document.querySelector('#play-button');
+        const welcomePage       = document.querySelector('#welcome-page');
+        const scannerUi         = document.querySelector('#scanner-ui');
+        const dynamicScannerImg = document.querySelector('#dynamic-scanner-img');
+        const videoContainer    = document.querySelector('#video-container');
+        const videoWrapper      = document.querySelector('#video-wrapper');
+        const buyNowBtn         = document.querySelector('#buy-now-cta');
+        const campaignTitle     = document.querySelector('#campaign-title');
+        const errorScreen       = document.querySelector('#error-screen');
+        const loadingOverlay    = document.querySelector('#loading-overlay');
+        const loadingMsg        = document.querySelector('#loading-msg');
+
+        let campaignData    = null;
+        let isStickyEnabled = true;
+        let hasFoundOnce    = false;
+
+        // ── FIX 2: Start API fetch at script parse time — no waiting for 'load' event.
+        // window 'load' fires after ALL sub-resources (images, etc.) finish, which can
+        // be 1-3 seconds later. DOMContentLoaded or inline is much earlier.
+        const campaignPromise = (async () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const targetId  = urlParams.get('id');
+            const res = await fetch(API_URL);
+            if (!res.ok) throw new Error("API Failure");
+            const data = await res.json();
+            return targetId
+                ? data.find(item => item.id === targetId)
+                : data.find(item => item.is_active === true);
+        })();
+
+        // ── FIX 5: Inject <link rel="preload"> hints for the three AR scripts right
+        // after campaign data loads. The browser will download them in the background
+        // at low priority while the user reads the welcome screen, so by the time they
+        // tap Play, the files are already in the HTTP cache.
+        function preloadARScripts() {
+            [
+                'https://aframe.io/releases/1.5.0/aframe.min.js',
+                'https://cdn.jsdelivr.net/gh/donmccurdy/aframe-extras@v7.0.0/dist/aframe-extras.min.js',
+                'https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js'
+            ].forEach(src => {
+                const link = document.createElement('link');
+                link.rel = 'preload'; link.as = 'script'; link.href = src;
+                document.head.appendChild(link);
+            });
+        }
+
+        // ── FIX 2: DOMContentLoaded fires as soon as HTML is parsed — no waiting for
+        // images. Combined with the inline campaignPromise this is the fastest path.
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const campaign = await campaignPromise;
+                if (!campaign) { errorScreen.style.display = 'flex'; return; }
+
+                campaignData = campaign;
+                campaignTitle.innerText = 'ExpRE';
+                dynamicScannerImg.src   = campaign.scannerImg;
+                buyNowBtn.style.backgroundImage = `url('${campaign.CTAimgUrl}')`;
+                buyNowBtn.href = campaign.CTAredirectUrl;
+
+                // FIX 5: Start background preload of AR scripts now
+                preloadARScripts();
+
+                // FIX 12: Cut artificial delay from 600ms → 150ms.
+                // Data is ready; only need a short pause for the slide-up animation
+                setTimeout(() => {
+                    playBtn.style.display   = 'flex';
+                    playBtn.style.animation = 'fadeInRight 0.5s ease forwards';
+                }, 150);
+
+            } catch (err) {
+                console.error("Setup Error:", err);
+                errorScreen.style.display = 'flex';
+            }
+        });
+
+        // ── Script loader (skips if already in DOM from preload execution)
+        function loadScript(src) {
+            return new Promise((resolve, reject) => {
+                if (document.querySelector(`script[src="${src}"]`)) { resolve(); return; }
+                const s = document.createElement('script');
+                s.src = src;
+                s.onload = resolve; s.onerror = reject;
+                document.head.appendChild(s);
+            });
+        }
+
+        let arScriptsLoaded = false;
+
+        // ── FIX 1: Load aframe + aframe-extras in PARALLEL via Promise.all, then
+        // mindar (which requires aframe to be present) sequentially after.
+        // Old approach (serial): ~T_aframe + T_extras + T_mindar
+        // New approach:          ~max(T_aframe, T_extras) + T_mindar  → saves ~200ms
+        async function ensureARScripts() {
+            if (arScriptsLoaded) return;
+            loadingMsg.textContent = 'Loading AR libraries…';
+            await Promise.all([
+                loadScript('https://aframe.io/releases/1.5.0/aframe.min.js'),
+                loadScript('https://cdn.jsdelivr.net/gh/donmccurdy/aframe-extras@v7.0.0/dist/aframe-extras.min.js')
+            ]);
+            await loadScript('https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js');
+            arScriptsLoaded = true;
+        }
+
+        // ── Build a-scene after AR scripts are ready ──────────────────────────────
+        function buildARScene(campaign) {
+
+            // FIX 7: force-front-facing only runs tick() when the target is visible.
+            // Previously it called quaternion.set() every frame (~60fps) regardless.
+            AFRAME.registerComponent('force-front-facing', {
+                init()       { this._active = false; },
+                activate()   { this._active = true; },
+                deactivate() { this._active = false; },
+                tick()       { if (this._active) this.el.object3D.quaternion.set(0, 0, 0, 1); }
+            });
+
+            document.querySelector('#ar-scene-container').innerHTML = `
+                <a-scene
+                    id="ar-scene"
+                    mindar-image="autoStart: false; uiScanning: #none; filterMinCF: 0.001; filterBeta: 0.001; missTolerance: 10;"
+                    device-orientation-permission-ui="enabled: false"
+                    vr-mode-ui="enabled: false"
+                    renderer="antialias: true; colorManagement: true; precision: mediump;">
+                    <a-assets>
+                        <video id="myVideo" loop="true" crossorigin="anonymous" playsinline webkit-playsinline preload="none"></video>
+                    </a-assets>
+                    <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+                    <a-entity mindar-image-target="targetIndex: 0" id="target-entity">
+                        <a-text
+                            id="ar-text-ui"
+                            value="${campaign.campaignName.toUpperCase()}"
+                            align="center" color="#FFFFFF" negate="false"
+                            scale="0.8 0.8 0.8" position="0 1.25 0.1"
+                            font="https://cdn.aframe.io/fonts/DejaVu-sdf.fnt"
+                            force-front-facing>
+                        </a-text>
+                        <a-video id="ar-video-renderer" src="#myVideo" position="0 0 0.1"></a-video>
+                    </a-entity>
+                </a-scene>`;
+
+            const sceneEl         = document.querySelector('#ar-scene');
+            const arVideoRenderer = document.querySelector('#ar-video-renderer');
+            const arTextUI        = document.querySelector('#ar-text-ui');
+            const video           = document.querySelector('#myVideo');
+            const aAssets         = document.querySelector('a-assets'); // FIX 10: cached
+
+            // VIDEO SIZING — match the AR plane exactly to the target image dimensions
+            // ─────────────────────────────────────────────────────────────────────────
+            // In MindAR's coordinate space, 1 unit = the physical width of the target
+            // image. So a plane of width=1 covers the target exactly side-to-side.
+            // Height = 1 / targetAspectRatio  (target width ÷ target height).
+            //
+            // Strategy (in priority order):
+            //   1. Use targetWidth / targetHeight fields from the campaign JSON (fastest)
+            //   2. Load the target/scanner image and read its natural dimensions
+            //   3. Fall back to the video's own aspect ratio at width=1
+            //
+            // The video is letterboxed/pillarboxed inside the plane when its aspect
+            // ratio differs from the target — the plane itself always matches the image.
+
+            video.src = campaign.videoUrl; // src set, load deferred to first targetFound
+
+            function applyPlaneSize(targetW, targetH) {
+                const planeW = 1;                      // always exactly the target width
+                const planeH = planeW * (targetH / targetW);
+                arVideoRenderer.setAttribute('width',  planeW);
+                arVideoRenderer.setAttribute('height', planeH);
+            }
+
+            function sizeFromTargetImage() {
+                return new Promise(resolve => {
+                    const img = new Image();
+                    img.crossOrigin = 'anonymous';
+                    // Prefer scannerImg (same image used for the .mind file); fall back to mindUrl
+                    img.src = campaign.scannerImg || campaign.targetImageUrl || '';
+                    img.onload  = () => resolve({ w: img.naturalWidth,  h: img.naturalHeight });
+                    img.onerror = () => resolve(null);
+                });
+            }
+
+            // Run sizing logic async so it doesn't block scene setup
+            (async () => {
+                // Option 1: dimensions already in the campaign JSON
+                if (campaign.targetImageWidth && campaign.targetImageHeight) {
+                    applyPlaneSize(campaign.targetImageWidth, campaign.targetImageHeight);
+                    return;
+                }
+
+                // Option 2: measure the scanner/target image
+                const dims = await sizeFromTargetImage();
+                if (dims) {
+                    applyPlaneSize(dims.w, dims.h);
+                    return;
+                }
+
+                // Option 3: fallback — use video aspect ratio at width=1
+                // (sets size once video metadata arrives)
+                video.addEventListener('loadedmetadata', () => {
+                    applyPlaneSize(video.videoWidth, video.videoHeight);
+                }, { once: true });
+            })();
+
+            sceneEl.setAttribute('mindar-image', {
+                imageTargetSrc: campaign.mindUrl,
+                autoStart: false, uiScanning: '#none'
+            });
+
+            // FIX 11: Hide loading overlay only when the scene is truly ready
+            // (WebGL context + camera permission granted), not right after script load.
+            sceneEl.addEventListener('render-target-loaded', () => {
+                loadingOverlay.style.display = 'none';
+                scannerUi.style.display      = 'flex';
+                const arSystem = sceneEl.systems['mindar-image-system'];
+                if (arSystem) arSystem.start();
+            }, { once: true });
+
+            const targetEntity = document.querySelector('#target-entity');
+
+            targetEntity.addEventListener('targetFound', () => {
+                hasFoundOnce    = true;
+                isStickyEnabled = true;
+                scannerUi.style.display      = 'none';
+                videoContainer.style.display = 'none';
+                buyNowBtn.style.display      = 'block';
+
+                if (video.parentElement !== aAssets) aAssets.appendChild(video); // FIX 10
+
+                arVideoRenderer.setAttribute('visible', 'true');
+                arTextUI.setAttribute('visible', 'true');
+
+                // FIX 7: Enable tick only when target is visible
+                arTextUI.components['force-front-facing']?.activate();
+
+                // FIX 6: Trigger metadata load on first scan, not at scene build time
+                if (video.readyState === 0) video.load();
+                video.play();
+            });
+
+            targetEntity.addEventListener('targetLost', () => {
+                // FIX 7: Disable tick when target not visible
+                arTextUI.components['force-front-facing']?.deactivate();
+
+                if (hasFoundOnce && isStickyEnabled) {
+                    arVideoRenderer.setAttribute('visible', 'false');
+                    arTextUI.setAttribute('visible', 'false');
+                    videoContainer.style.display = 'flex';
+                    videoWrapper.appendChild(video);
+                    video.play();
+                } else {
+                    video.pause();
+                }
+            });
+
+            document.querySelector('#close-sticky').addEventListener('click', (e) => {
+                e.stopPropagation();
+                isStickyEnabled = false;
+                videoContainer.style.display = 'none';
+                scannerUi.style.display      = 'flex';
+                video.pause();
+                aAssets.appendChild(video); // FIX 10: cached ref
+            });
+
+            document.addEventListener('visibilitychange', () => {
+                if (document.hidden) video.pause();
+            });
+        }
+
+        // ── Play button ───────────────────────────────────────────────────────────
+        playBtn.addEventListener('click', async () => {
+            if (!campaignData) return;
+            loadingOverlay.style.display = 'flex';
+            loadingMsg.textContent = 'Loading AR Experience…';
+
+            try {
+                await ensureARScripts(); // FIX 1: parallel load inside
+                document.body.style.backgroundColor            = 'transparent';
+                document.documentElement.style.backgroundColor = 'transparent';
+                welcomePage.style.display = 'none';
+                buildARScene(campaignData);
+                // FIX 11: loadingOverlay hides inside buildARScene on render-target-loaded
+            } catch (err) {
+                console.error('AR load error:', err);
+                loadingOverlay.style.display = 'none';
+                errorScreen.style.display    = 'flex';
+            }
+        });
+    </script>
 </body>
 </html>
