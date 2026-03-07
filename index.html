@@ -203,18 +203,19 @@
                 : data.find(item => item.is_active === true);
         })();
 
-        // ── FIX 5: Inject <link rel="preload"> hints for the three AR scripts right
-        // after campaign data loads. The browser will download them in the background
-        // at low priority while the user reads the welcome screen, so by the time they
-        // tap Play, the files are already in the HTTP cache.
-        function preloadARScripts() {
+        // Background cache hint — uses rel="prefetch" NOT "preload":
+        //   preload = high priority, browser warns if unused within ~3s of load event
+        //   prefetch = idle-time background download, no usage deadline, no warning
+        // aframe-extras is intentionally excluded: this project uses none of its
+        // components and it bundles its own Three.js copy which causes:
+        //   "WARNING: Multiple instances of Three.js being imported."
+        function prefetchARScripts() {
             [
                 'https://aframe.io/releases/1.5.0/aframe.min.js',
-                'https://cdn.jsdelivr.net/gh/donmccurdy/aframe-extras@v7.0.0/dist/aframe-extras.min.js',
                 'https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js'
             ].forEach(src => {
                 const link = document.createElement('link');
-                link.rel = 'preload'; link.as = 'script'; link.href = src;
+                link.rel = 'prefetch'; link.as = 'script'; link.href = src;
                 document.head.appendChild(link);
             });
         }
@@ -232,8 +233,8 @@
                 buyNowBtn.style.backgroundImage = `url('${campaign.CTAimgUrl}')`;
                 buyNowBtn.href = campaign.CTAredirectUrl;
 
-                // FIX 5: Start background preload of AR scripts now
-                preloadARScripts();
+                // Start idle-time prefetch of AR scripts (prefetch = no browser warning)
+                prefetchARScripts();
 
                 // FIX 12: Cut artificial delay from 600ms → 150ms.
                 // Data is ready; only need a short pause for the slide-up animation
@@ -261,17 +262,13 @@
 
         let arScriptsLoaded = false;
 
-        // ── FIX 1: Load aframe + aframe-extras in PARALLEL via Promise.all, then
-        // mindar (which requires aframe to be present) sequentially after.
-        // Old approach (serial): ~T_aframe + T_extras + T_mindar
-        // New approach:          ~max(T_aframe, T_extras) + T_mindar  → saves ~200ms
+        // Load A-Frame first, then MindAR which depends on it.
+        // aframe-extras removed: unused in this project and it ships its own Three.js
+        // copy, causing "Multiple instances of Three.js" conflict with A-Frame's copy.
         async function ensureARScripts() {
             if (arScriptsLoaded) return;
             loadingMsg.textContent = 'Loading AR libraries…';
-            await Promise.all([
-                loadScript('https://aframe.io/releases/1.5.0/aframe.min.js'),
-                loadScript('https://cdn.jsdelivr.net/gh/donmccurdy/aframe-extras@v7.0.0/dist/aframe-extras.min.js')
-            ]);
+            await loadScript('https://aframe.io/releases/1.5.0/aframe.min.js');
             await loadScript('https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js');
             arScriptsLoaded = true;
         }
@@ -294,9 +291,9 @@
                     mindar-image="autoStart: false; uiScanning: #none; filterMinCF: 0.001; filterBeta: 0.001; missTolerance: 10;"
                     device-orientation-permission-ui="enabled: false"
                     vr-mode-ui="enabled: false"
-                    renderer="antialias: true; colorManagement: true; precision: mediump;">
-                    <a-assets>
-                        <video id="myVideo" loop="true" crossorigin="anonymous" playsinline webkit-playsinline preload="none"></video>
+                    renderer="antialias: true; colorManagement: true; precision: highp;">
+                    <a-assets timeout="10000">
+                        <video id="myVideo" src="${campaign.videoUrl}" loop="true" crossorigin="anonymous" playsinline webkit-playsinline preload="none"></video>
                     </a-assets>
                     <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
                     <a-entity mindar-image-target="targetIndex: 0" id="target-entity">
@@ -332,7 +329,7 @@
             // The video is letterboxed/pillarboxed inside the plane when its aspect
             // ratio differs from the target — the plane itself always matches the image.
 
-            video.src = campaign.videoUrl; // src set, load deferred to first targetFound
+            // video.src is set in the a-assets HTML above (prevents a-assets srcless warning)
 
             function applyPlaneSize(targetW, targetH) {
                 const planeW = 1;                      // always exactly the target width
