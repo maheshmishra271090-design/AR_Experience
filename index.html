@@ -119,6 +119,31 @@
             justify-content: center; align-items: center; color: white; text-align: center; padding: 20px;
         }
 
+        /* AR scene container and all A-Frame / MindAR injected elements must fill
+           the full viewport. Without this the canvas defaults to 0×0 or a small
+           auto size and the camera feed appears cropped or invisible.           */
+        #ar-scene-container,
+        #ar-scene-container a-scene {
+            position: fixed !important;
+            top: 0 !important; left: 0 !important;
+            width: 100% !important; height: 100% !important;
+            z-index: 0;
+        }
+        /* A-Frame injects a <canvas> — force it fullscreen */
+        #ar-scene-container canvas {
+            position: fixed !important;
+            top: 0 !important; left: 0 !important;
+            width: 100% !important; height: 100% !important;
+        }
+        /* MindAR injects a <video> for the camera feed — force it fullscreen */
+        #ar-scene-container video.mindar-video,
+        #ar-scene-container video[autoplay] {
+            position: fixed !important;
+            top: 0 !important; left: 0 !important;
+            width: 100% !important; height: 100% !important;
+            object-fit: cover !important;
+        }
+
         @keyframes scan { 0% { top: 0; } 100% { top: 100%; } }
         @keyframes slideUp { to { transform: translateY(0); } }
         @keyframes fadeInRight { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
@@ -288,6 +313,7 @@
             document.querySelector('#ar-scene-container').innerHTML = `
                 <a-scene
                     id="ar-scene"
+                    embedded
                     mindar-image="autoStart: false; uiScanning: #none; filterMinCF: 0.001; filterBeta: 0.001; missTolerance: 10;"
                     device-orientation-permission-ui="enabled: false"
                     vr-mode-ui="enabled: false"
