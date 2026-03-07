@@ -211,7 +211,7 @@
         //   "WARNING: Multiple instances of Three.js being imported."
         function prefetchARScripts() {
             [
-                'https://aframe.io/releases/1.5.0/aframe.min.js',
+                'https://aframe.io/releases/1.6.0/aframe.min.js',
                 'https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js'
             ].forEach(src => {
                 const link = document.createElement('link');
@@ -268,7 +268,7 @@
         async function ensureARScripts() {
             if (arScriptsLoaded) return;
             loadingMsg.textContent = 'Loading AR libraries…';
-            await loadScript('https://aframe.io/releases/1.5.0/aframe.min.js');
+            await loadScript('https://aframe.io/releases/1.6.0/aframe.min.js');
             await loadScript('https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js');
             arScriptsLoaded = true;
         }
@@ -291,7 +291,7 @@
                     mindar-image="autoStart: false; uiScanning: #none; filterMinCF: 0.001; filterBeta: 0.001; missTolerance: 10;"
                     device-orientation-permission-ui="enabled: false"
                     vr-mode-ui="enabled: false"
-                    renderer="antialias: true; colorManagement: true; precision: highp;">
+                    renderer="antialias: true; colorManagement: true;">
                     <a-assets timeout="10000">
                         <video id="myVideo" src="${campaign.videoUrl}" loop="true" crossorigin="anonymous" playsinline webkit-playsinline preload="none"></video>
                     </a-assets>
@@ -376,14 +376,37 @@
                 autoStart: false, uiScanning: '#none'
             });
 
-            // FIX 11: Hide loading overlay only when the scene is truly ready
-            // (WebGL context + camera permission granted), not right after script load.
-            sceneEl.addEventListener('render-target-loaded', () => {
+            // Hide overlay and start AR tracking once the scene is truly ready.
+            // Uses three signals — whichever fires first wins (guarded by a flag):
+            //   1. 'renderstart'  — correct modern A-Frame event (replaces old 'render-target-loaded')
+            //   2. sceneEl.hasLoaded poll — catches the case where the scene was already
+            //      loaded before our listener was attached (race condition with innerHTML inject)
+            //   3. 3-second hard fallback — guarantees the overlay never stays forever
+            let arStarted = false;
+            function startARTracking() {
+                if (arStarted) return;
+                arStarted = true;
                 loadingOverlay.style.display = 'none';
                 scannerUi.style.display      = 'flex';
                 const arSystem = sceneEl.systems['mindar-image-system'];
                 if (arSystem) arSystem.start();
-            }, { once: true });
+            }
+
+            sceneEl.addEventListener('renderstart', startARTracking, { once: true });
+
+            // Poll in case the event already fired before listener attached
+            const readyPoll = setInterval(() => {
+                if (sceneEl.hasLoaded || sceneEl.renderStarted) {
+                    clearInterval(readyPoll);
+                    startARTracking();
+                }
+            }, 200);
+
+            // Hard fallback: clear overlay after 3s regardless
+            setTimeout(() => {
+                clearInterval(readyPoll);
+                startARTracking();
+            }, 3000);
 
             const targetEntity = document.querySelector('#target-entity');
 
