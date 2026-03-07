@@ -8,41 +8,89 @@
     <title>ExpRE</title>
 
     <!-- PWA: manifest + iOS meta tags -->
-    <!-- PWA manifest injected dynamically so start_url = current URL (preserves ?id= param) -->
+    <!-- PWA: dynamic manifest + SW id tracking
+         On every page load:
+           1. Notify SW of the current ?id= via postMessage (SW persists it)
+           2. Ask SW for the last stored URL — use it as start_url so the
+              installed PWA icon always opens the most recently visited campaign
+           3. Fall back to window.location.href if SW isn't ready yet          -->
     <script>
         (function() {
-            const base = {
-                "name": "ExpRE",
-                "short_name": "ExpRE",
-                "description": "Experiencing Reality — point your camera at the product.",
-                "start_url": window.location.href,
-                "scope": window.location.origin + window.location.pathname.replace(/[^/]*$/, ''),
-                "display": "fullscreen",
-                "orientation": "portrait",
-                "background_color": "#000000",
-                "theme_color": "#000000",
-                "icons": [
-                    {
-                        "src": "https://raw.githubusercontent.com/Mahesh2710/ARData/main/DynamicData/poster/welcomeposter.png",
-                        "sizes": "192x192",
-                        "type": "image/png",
-                        "purpose": "any"
-                    },
-                    {
-                        "src": "https://raw.githubusercontent.com/Mahesh2710/ARData/main/DynamicData/poster/welcomeposter.png",
-                        "sizes": "512x512",
-                        "type": "image/png",
-                        "purpose": "any maskable"
-                    }
-                ],
-                "prefer_related_applications": false
-            };
-            const blob = new Blob([JSON.stringify(base)], { type: 'application/json' });
-            const url  = URL.createObjectURL(blob);
-            const link = document.createElement('link');
-            link.rel   = 'manifest';
-            link.href  = url;
-            document.head.appendChild(link);
+            const ICONS = [
+                {
+                    src: "https://raw.githubusercontent.com/Mahesh2710/ARData/main/DynamicData/poster/welcomeposter.png",
+                    sizes: "192x192", type: "image/png", purpose: "any"
+                },
+                {
+                    src: "https://raw.githubusercontent.com/Mahesh2710/ARData/main/DynamicData/poster/welcomeposter.png",
+                    sizes: "512x512", type: "image/png", purpose: "any maskable"
+                }
+            ];
+
+            function buildManifest(startUrl) {
+                return {
+                    name: "ExpRE",
+                    short_name: "ExpRE",
+                    description: "Experiencing Reality — point your camera at the product.",
+                    start_url: startUrl,
+                    scope: window.location.origin + window.location.pathname.replace(/[^/]*$/, ''),
+                    display: "fullscreen",
+                    orientation: "portrait",
+                    background_color: "#000000",
+                    theme_color: "#000000",
+                    icons: ICONS,
+                    prefer_related_applications: false
+                };
+            }
+
+            function injectManifest(startUrl) {
+                // Remove any existing manifest link first
+                const existing = document.querySelector('link[rel="manifest"]');
+                if (existing) existing.remove();
+
+                const blob = new Blob([JSON.stringify(buildManifest(startUrl))],
+                                      { type: 'application/json' });
+                const link = document.createElement('link');
+                link.rel   = 'manifest';
+                link.href  = URL.createObjectURL(blob);
+                document.head.appendChild(link);
+            }
+
+            // Step 1: inject manifest immediately with current URL (fast path)
+            injectManifest(window.location.href);
+
+            // Step 2: once SW is ready, send it the current id + full URL,
+            //         then read back the stored URL and update manifest
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.ready.then(reg => {
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const currentId  = urlParams.get('id') || '';
+
+                    // Tell SW about the current visit
+                    reg.active?.postMessage({
+                        type:    'UPDATE_ID',
+                        id:      currentId,
+                        fullUrl: window.location.href
+                    });
+
+                    // Read back what SW has stored (may be a newer URL from a
+                    // different tab or a previous visit with a different ?id=)
+                    // Use SW's /sw-meta/last-id synthetic endpoint
+                    fetch('./sw-meta/last-id')
+                        .then(r => r.json())
+                        .then(meta => {
+                            // Only update manifest if the stored URL has an id
+                            // AND it's different from what we already set
+                            if (meta.fullUrl && meta.fullUrl !== window.location.href) {
+                                // The installed PWA should open the CURRENT url, not
+                                // a stale old one — so always use current window URL
+                                // but only after confirming SW received it
+                                injectManifest(window.location.href);
+                            }
+                        })
+                        .catch(() => {}); // SW not intercepting yet — already set above
+                });
+            }
         })();
     </script>
     <meta name="mobile-web-app-capable" content="yes">
@@ -564,7 +612,22 @@
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('./sw.js')
-                    .then(reg => console.log('[PWA] SW registered, scope:', reg.scope))
+                    .then(reg => {
+                        console.log('[PWA] SW registered, scope:', reg.scope);
+                        // Send current id to SW as soon as it's active
+                        const urlParams = new URLSearchParams(window.location.search);
+                        const msg = {
+                            type:    'UPDATE_ID',
+                            id:      urlParams.get('id') || '',
+                            fullUrl: window.location.href
+                        };
+                        // Active SW (returning visit)
+                        if (reg.active) reg.active.postMessage(msg);
+                        // Newly installed SW (first visit) — wait for it to activate
+                        (reg.installing || reg.waiting)?.addEventListener('statechange', function() {
+                            if (this.state === 'activated') reg.active?.postMessage(msg);
+                        });
+                    })
                     .catch(err => console.warn('[PWA] SW registration failed:', err));
             });
         }
