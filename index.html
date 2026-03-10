@@ -7,106 +7,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
     <title>ExpRE</title>
 
-    <!-- PWA: manifest + iOS meta tags -->
-    <!-- PWA: dynamic manifest + SW id tracking
-         On every page load:
-           1. Notify SW of the current ?id= via postMessage (SW persists it)
-           2. Ask SW for the last stored URL — use it as start_url so the
-              installed PWA icon always opens the most recently visited campaign
-           3. Fall back to window.location.href if SW isn't ready yet          -->
-    <script>
-        (function() {
-            const ICONS = [
-                {
-                    src: "https://raw.githubusercontent.com/Mahesh2710/ARData/main/DynamicData/poster/welcomeposter.png",
-                    sizes: "192x192", type: "image/png", purpose: "any"
-                },
-                {
-                    src: "https://raw.githubusercontent.com/Mahesh2710/ARData/main/DynamicData/poster/welcomeposter.png",
-                    sizes: "512x512", type: "image/png", purpose: "any maskable"
-                }
-            ];
-
-            function buildManifest(startUrl) {
-                return {
-                    name: "ExpRE",
-                    short_name: "ExpRE",
-                    description: "Experiencing Reality — point your camera at the product.",
-                    start_url: startUrl,
-                    scope: window.location.origin + window.location.pathname.replace(/[^/]*$/, ''),
-                    display: "fullscreen",
-                    orientation: "portrait",
-                    background_color: "#000000",
-                    theme_color: "#000000",
-                    icons: ICONS,
-                    prefer_related_applications: false
-                };
-            }
-
-            function injectManifest(startUrl) {
-                // Remove any existing manifest link first
-                const existing = document.querySelector('link[rel="manifest"]');
-                if (existing) existing.remove();
-
-                const blob = new Blob([JSON.stringify(buildManifest(startUrl))],
-                                      { type: 'application/json' });
-                const link = document.createElement('link');
-                link.rel   = 'manifest';
-                link.href  = URL.createObjectURL(blob);
-                document.head.appendChild(link);
-            }
-
-            // Step 1: inject manifest immediately with current URL (fast path)
-            injectManifest(window.location.href);
-
-            // Step 2: once SW is ready, send it the current id + full URL,
-            //         then read back the stored URL and update manifest
-            if ('serviceWorker' in navigator) {
-                navigator.serviceWorker.ready.then(reg => {
-                    const urlParams = new URLSearchParams(window.location.search);
-                    const currentId  = urlParams.get('id') || '';
-
-                    // Tell SW about the current visit
-                    reg.active?.postMessage({
-                        type:    'UPDATE_ID',
-                        id:      currentId,
-                        fullUrl: window.location.href
-                    });
-
-                    // Read back what SW has stored (may be a newer URL from a
-                    // different tab or a previous visit with a different ?id=)
-                    // Use SW's /sw-meta/last-id synthetic endpoint
-                    fetch('./sw-meta/last-id')
-                        .then(r => r.json())
-                        .then(meta => {
-                            // Only update manifest if the stored URL has an id
-                            // AND it's different from what we already set
-                            if (meta.fullUrl && meta.fullUrl !== window.location.href) {
-                                // The installed PWA should open the CURRENT url, not
-                                // a stale old one — so always use current window URL
-                                // but only after confirming SW received it
-                                injectManifest(window.location.href);
-                            }
-                        })
-                        .catch(() => {}); // SW not intercepting yet — already set above
-                });
-            }
-        })();
-    </script>
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="ExpRE">
-    <meta name="theme-color" content="#000000">
-    <!-- iOS home screen icon (uses poster image) -->
-    <link rel="apple-touch-icon" href="https://raw.githubusercontent.com/Mahesh2710/ARData/main/DynamicData/poster/welcomeposter.png">
-    <!-- iOS splash screen: black background while app loads -->
-    <meta name="apple-mobile-web-app-status-bar-style" content="black">
-
-    <!-- FIX 3: Preload above-the-fold background images so browser fetches them
-         immediately, not after CSS is parsed. High priority on the hero image. -->
-    <link rel="preload" as="image" href="https://raw.githubusercontent.com/Mahesh2710/ARData/main/DynamicData/poster/welcomeposter.png" fetchpriority="high">
-    <link rel="preload" as="image" href="https://raw.githubusercontent.com/Mahesh2710/ARData/main/DynamicData/poster/welcome.png">
+    <!-- Impression Tracker -->
+    <script>var imp_track_ITGD = new Image();imp_track_ITGD.src = 'https://imptrack.intoday.in/impression_tracker.php?domain=AT&clientCode=501877&loop=1&';</script>
+    <noscript><img width="1" height="1" border="0" src="https://imptrack.intoday.in/impression_tracker.php?domain=AT&clientCode=501877&z=[timestamp]"></noscript>
 
     <!-- Preconnect / dns-prefetch for all external origins -->
     <link rel="preconnect" href="https://aframe.io" crossorigin>
@@ -114,6 +17,10 @@
     <link rel="preconnect" href="https://akm-img-a-in.tosshub.com" crossorigin>
     <link rel="dns-prefetch" href="https://raw.githubusercontent.com">
     <link rel="dns-prefetch" href="https://cdn.aframe.io">
+
+    <!-- Preload above-the-fold background images -->
+    <link rel="preload" as="image" href="https://raw.githubusercontent.com/Mahesh2710/ARData/main/DynamicData/poster/welcomeposter.png" fetchpriority="high">
+    <link rel="preload" as="image" href="https://raw.githubusercontent.com/Mahesh2710/ARData/main/DynamicData/poster/welcome.png">
 
     <style>
         body, html { 
@@ -215,9 +122,6 @@
             justify-content: center; align-items: center; color: white; text-align: center; padding: 20px;
         }
 
-        /* AR scene container and all A-Frame / MindAR injected elements must fill
-           the full viewport. Without this the canvas defaults to 0×0 or a small
-           auto size and the camera feed appears cropped or invisible.           */
         #ar-scene-container,
         #ar-scene-container a-scene {
             position: fixed !important;
@@ -225,13 +129,11 @@
             width: 100% !important; height: 100% !important;
             z-index: 0;
         }
-        /* A-Frame injects a <canvas> — force it fullscreen */
         #ar-scene-container canvas {
             position: fixed !important;
             top: 0 !important; left: 0 !important;
             width: 100% !important; height: 100% !important;
         }
-        /* MindAR injects a <video> for the camera feed — force it fullscreen */
         #ar-scene-container video.mindar-video,
         #ar-scene-container video[autoplay] {
             position: fixed !important;
@@ -244,7 +146,6 @@
         @keyframes slideUp { to { transform: translateY(0); } }
         @keyframes fadeInRight { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
         @keyframes spin { to { transform: rotate(360deg); } }
-
     </style>
 </head>
 <body>
@@ -288,14 +189,14 @@
         <button onclick="location.reload()" style="margin-top:20px; padding:10px 25px; border-radius:20px; border:none; background:#4185f4; color:white; font-weight:bold;">Try Again</button>
     </div>
 
-    <a href="#" target="_blank" id="buy-now-cta"></a>
+    <!-- Click Tracker wraps the CTA — href fires the tracker URL which redirects to destination -->
+    <a href="https://imptrack.intoday.in/click_tracker.php?domain=AT&clientCode=501876&k=https%3A%2F%2Fblinkit.com%2F" target="_blank" id="buy-now-cta"></a>
     <div id="ar-scene-container"></div>
 
 
     <script>
         const API_URL = "https://akm-img-a-in.tosshub.com/app/at-app/at_dev/newicons/AR_expierence.json#?jnsdk";
 
-        // FIX 10: Cache ALL DOM references once at startup — no re-querying inside events
         const playBtn           = document.querySelector('#play-button');
         const welcomePage       = document.querySelector('#welcome-page');
         const scannerUi         = document.querySelector('#scanner-ui');
@@ -312,9 +213,6 @@
         let isStickyEnabled = true;
         let hasFoundOnce    = false;
 
-        // ── FIX 2: Start API fetch at script parse time — no waiting for 'load' event.
-        // window 'load' fires after ALL sub-resources (images, etc.) finish, which can
-        // be 1-3 seconds later. DOMContentLoaded or inline is much earlier.
         const campaignPromise = (async () => {
             const urlParams = new URLSearchParams(window.location.search);
             const targetId  = urlParams.get('id');
@@ -326,12 +224,6 @@
                 : data.find(item => item.is_active === true);
         })();
 
-        // Background cache hint — uses rel="prefetch" NOT "preload":
-        //   preload = high priority, browser warns if unused within ~3s of load event
-        //   prefetch = idle-time background download, no usage deadline, no warning
-        // aframe-extras is intentionally excluded: this project uses none of its
-        // components and it bundles its own Three.js copy which causes:
-        //   "WARNING: Multiple instances of Three.js being imported."
         function prefetchARScripts() {
             [
                 'https://aframe.io/releases/1.6.0/aframe.min.js',
@@ -343,8 +235,6 @@
             });
         }
 
-        // ── FIX 2: DOMContentLoaded fires as soon as HTML is parsed — no waiting for
-        // images. Combined with the inline campaignPromise this is the fastest path.
         document.addEventListener('DOMContentLoaded', async () => {
             try {
                 const campaign = await campaignPromise;
@@ -353,14 +243,12 @@
                 campaignData = campaign;
                 campaignTitle.innerText = 'ExpRE';
                 dynamicScannerImg.src   = campaign.scannerImg;
-                buyNowBtn.style.backgroundImage = `url('${campaign.CTAimgUrl}')`;
-                buyNowBtn.href = campaign.CTAredirectUrl;
 
-                // Start idle-time prefetch of AR scripts (prefetch = no browser warning)
+                // Set CTA background image; href remains the click tracker URL
+                buyNowBtn.style.backgroundImage = `url('${campaign.CTAimgUrl}')`;
+
                 prefetchARScripts();
 
-                // FIX 12: Cut artificial delay from 600ms → 150ms.
-                // Data is ready; only need a short pause for the slide-up animation
                 setTimeout(() => {
                     playBtn.style.display   = 'flex';
                     playBtn.style.animation = 'fadeInRight 0.5s ease forwards';
@@ -372,7 +260,6 @@
             }
         });
 
-        // ── Script loader (skips if already in DOM from preload execution)
         function loadScript(src) {
             return new Promise((resolve, reject) => {
                 if (document.querySelector(`script[src="${src}"]`)) { resolve(); return; }
@@ -385,9 +272,6 @@
 
         let arScriptsLoaded = false;
 
-        // Load A-Frame first, then MindAR which depends on it.
-        // aframe-extras removed: unused in this project and it ships its own Three.js
-        // copy, causing "Multiple instances of Three.js" conflict with A-Frame's copy.
         async function ensureARScripts() {
             if (arScriptsLoaded) return;
             loadingMsg.textContent = 'Loading AR libraries…';
@@ -396,11 +280,8 @@
             arScriptsLoaded = true;
         }
 
-        // ── Build a-scene after AR scripts are ready ──────────────────────────────
         function buildARScene(campaign) {
 
-            // FIX 7: force-front-facing only runs tick() when the target is visible.
-            // Previously it called quaternion.set() every frame (~60fps) regardless.
             AFRAME.registerComponent('force-front-facing', {
                 init()       { this._active = false; },
                 activate()   { this._active = true; },
@@ -437,26 +318,10 @@
             const arVideoRenderer = document.querySelector('#ar-video-renderer');
             const arTextUI        = document.querySelector('#ar-text-ui');
             const video           = document.querySelector('#myVideo');
-            const aAssets         = document.querySelector('a-assets'); // FIX 10: cached
-
-            // VIDEO SIZING — match the AR plane exactly to the target image dimensions
-            // ─────────────────────────────────────────────────────────────────────────
-            // In MindAR's coordinate space, 1 unit = the physical width of the target
-            // image. So a plane of width=1 covers the target exactly side-to-side.
-            // Height = 1 / targetAspectRatio  (target width ÷ target height).
-            //
-            // Strategy (in priority order):
-            //   1. Use targetWidth / targetHeight fields from the campaign JSON (fastest)
-            //   2. Load the target/scanner image and read its natural dimensions
-            //   3. Fall back to the video's own aspect ratio at width=1
-            //
-            // The video is letterboxed/pillarboxed inside the plane when its aspect
-            // ratio differs from the target — the plane itself always matches the image.
-
-            // video.src is set in the a-assets HTML above (prevents a-assets srcless warning)
+            const aAssets         = document.querySelector('a-assets');
 
             function applyPlaneSize(targetW, targetH) {
-                const planeW = 1;                      // always exactly the target width
+                const planeW = 1;
                 const planeH = planeW * (targetH / targetW);
                 arVideoRenderer.setAttribute('width',  planeW);
                 arVideoRenderer.setAttribute('height', planeH);
@@ -466,30 +331,22 @@
                 return new Promise(resolve => {
                     const img = new Image();
                     img.crossOrigin = 'anonymous';
-                    // Prefer scannerImg (same image used for the .mind file); fall back to mindUrl
                     img.src = campaign.scannerImg || campaign.targetImageUrl || '';
                     img.onload  = () => resolve({ w: img.naturalWidth,  h: img.naturalHeight });
                     img.onerror = () => resolve(null);
                 });
             }
 
-            // Run sizing logic async so it doesn't block scene setup
             (async () => {
-                // Option 1: dimensions already in the campaign JSON
                 if (campaign.targetImageWidth && campaign.targetImageHeight) {
                     applyPlaneSize(campaign.targetImageWidth, campaign.targetImageHeight);
                     return;
                 }
-
-                // Option 2: measure the scanner/target image
                 const dims = await sizeFromTargetImage();
                 if (dims) {
                     applyPlaneSize(dims.w, dims.h);
                     return;
                 }
-
-                // Option 3: fallback — use video aspect ratio at width=1
-                // (sets size once video metadata arrives)
                 video.addEventListener('loadedmetadata', () => {
                     applyPlaneSize(video.videoWidth, video.videoHeight);
                 }, { once: true });
@@ -500,12 +357,6 @@
                 autoStart: false, uiScanning: '#none'
             });
 
-            // Hide overlay and start AR tracking once the scene is truly ready.
-            // Uses three signals — whichever fires first wins (guarded by a flag):
-            //   1. 'renderstart'  — correct modern A-Frame event (replaces old 'render-target-loaded')
-            //   2. sceneEl.hasLoaded poll — catches the case where the scene was already
-            //      loaded before our listener was attached (race condition with innerHTML inject)
-            //   3. 3-second hard fallback — guarantees the overlay never stays forever
             let arStarted = false;
             function startARTracking() {
                 if (arStarted) return;
@@ -518,7 +369,6 @@
 
             sceneEl.addEventListener('renderstart', startARTracking, { once: true });
 
-            // Poll in case the event already fired before listener attached
             const readyPoll = setInterval(() => {
                 if (sceneEl.hasLoaded || sceneEl.renderStarted) {
                     clearInterval(readyPoll);
@@ -526,7 +376,6 @@
                 }
             }, 200);
 
-            // Hard fallback: clear overlay after 3s regardless
             setTimeout(() => {
                 clearInterval(readyPoll);
                 startARTracking();
@@ -541,21 +390,17 @@
                 videoContainer.style.display = 'none';
                 buyNowBtn.style.display      = 'block';
 
-                if (video.parentElement !== aAssets) aAssets.appendChild(video); // FIX 10
+                if (video.parentElement !== aAssets) aAssets.appendChild(video);
 
                 arVideoRenderer.setAttribute('visible', 'true');
                 arTextUI.setAttribute('visible', 'true');
-
-                // FIX 7: Enable tick only when target is visible
                 arTextUI.components['force-front-facing']?.activate();
 
-                // FIX 6: Trigger metadata load on first scan, not at scene build time
                 if (video.readyState === 0) video.load();
                 video.play();
             });
 
             targetEntity.addEventListener('targetLost', () => {
-                // FIX 7: Disable tick when target not visible
                 arTextUI.components['force-front-facing']?.deactivate();
 
                 if (hasFoundOnce && isStickyEnabled) {
@@ -575,7 +420,7 @@
                 videoContainer.style.display = 'none';
                 scannerUi.style.display      = 'flex';
                 video.pause();
-                aAssets.appendChild(video); // FIX 10: cached ref
+                aAssets.appendChild(video);
             });
 
             document.addEventListener('visibilitychange', () => {
@@ -587,87 +432,21 @@
         playBtn.addEventListener('click', async () => {
             if (!campaignData) return;
 
-            // Silent PWA install — fires native prompt using this tap as the user gesture.
-            // AR loading starts immediately in parallel; user can accept/dismiss independently.
-            triggerSilentInstall();
-
             loadingOverlay.style.display = 'flex';
             loadingMsg.textContent = 'Loading AR Experience…';
 
             try {
-                await ensureARScripts(); // FIX 1: parallel load inside
+                await ensureARScripts();
                 document.body.style.backgroundColor            = 'transparent';
                 document.documentElement.style.backgroundColor = 'transparent';
                 welcomePage.style.display = 'none';
                 buildARScene(campaignData);
-                // FIX 11: loadingOverlay hides inside buildARScene on render-target-loaded
             } catch (err) {
                 console.error('AR load error:', err);
                 loadingOverlay.style.display = 'none';
                 errorScreen.style.display    = 'flex';
             }
         });
-
-        // ── PWA: Service Worker registration ─────────────────────────────────────
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js')
-                    .then(reg => {
-                        console.log('[PWA] SW registered, scope:', reg.scope);
-                        // Send current id to SW as soon as it's active
-                        const urlParams = new URLSearchParams(window.location.search);
-                        const msg = {
-                            type:    'UPDATE_ID',
-                            id:      urlParams.get('id') || '',
-                            fullUrl: window.location.href
-                        };
-                        // Active SW (returning visit)
-                        if (reg.active) reg.active.postMessage(msg);
-                        // Newly installed SW (first visit) — wait for it to activate
-                        (reg.installing || reg.waiting)?.addEventListener('statechange', function() {
-                            if (this.state === 'activated') reg.active?.postMessage(msg);
-                        });
-                    })
-                    .catch(err => console.warn('[PWA] SW registration failed:', err));
-            });
-        }
-
-        // ── PWA: Silent install on Play tap ──────────────────────────────────────
-        // No banners, no popups. Strategy:
-        //   1. Capture 'beforeinstallprompt' immediately and suppress the browser bar
-        //   2. When user taps Play (a real user gesture), fire .prompt() right away
-        //      The browser's native "Add to Home Screen?" sheet appears — 1 tap to confirm
-        //      The AR experience starts loading simultaneously behind it
-        //   3. iOS has no install API — nothing shown, user can use Safari's Share menu
-        //   4. Already-installed (standalone) — skip entirely
-
-        let deferredInstallPrompt = null;
-
-        const isStandalone = window.matchMedia('(display-mode: standalone)').matches
-                          || window.navigator.standalone === true;
-
-        if (!isStandalone) {
-            // Capture and suppress the automatic browser prompt
-            window.addEventListener('beforeinstallprompt', e => {
-                e.preventDefault();
-                deferredInstallPrompt = e;
-            });
-
-            window.addEventListener('appinstalled', () => {
-                deferredInstallPrompt = null;
-            });
-        }
-
-        // Called inside Play button tap — user gesture satisfies browser requirement
-        function triggerSilentInstall() {
-            if (!deferredInstallPrompt || isStandalone) return;
-            // Fire immediately — no await, so AR loading starts in parallel
-            deferredInstallPrompt.prompt();
-            deferredInstallPrompt.userChoice.then(({ outcome }) => {
-                console.log('[PWA] Install outcome:', outcome);
-                deferredInstallPrompt = null;
-            });
-        }
     </script>
 </body>
 </html>
