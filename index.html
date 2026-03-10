@@ -7,6 +7,101 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
     <title>ExpRE</title>
 
+    <!-- PWA: manifest + iOS meta tags -->
+    <!-- PWA: dynamic manifest + SW id tracking
+         On every page load:
+           1. Notify SW of the current ?id= via postMessage (SW persists it)
+           2. Ask SW for the last stored URL — use it as start_url so the
+              installed PWA icon always opens the most recently visited campaign
+           3. Fall back to window.location.href if SW isn't ready yet          -->
+    <script>
+        (function() {
+            const ICONS = [
+                {
+                    src: "https://raw.githubusercontent.com/Mahesh2710/ARData/main/DynamicData/poster/welcomeposter.png",
+                    sizes: "192x192", type: "image/png", purpose: "any"
+                },
+                {
+                    src: "https://raw.githubusercontent.com/Mahesh2710/ARData/main/DynamicData/poster/welcomeposter.png",
+                    sizes: "512x512", type: "image/png", purpose: "any maskable"
+                }
+            ];
+
+            function buildManifest(startUrl) {
+                return {
+                    name: "ExpRE",
+                    short_name: "ExpRE",
+                    description: "Experiencing Reality — point your camera at the product.",
+                    start_url: startUrl,
+                    scope: window.location.origin + window.location.pathname.replace(/[^/]*$/, ''),
+                    display: "fullscreen",
+                    orientation: "portrait",
+                    background_color: "#000000",
+                    theme_color: "#000000",
+                    icons: ICONS,
+                    prefer_related_applications: false
+                };
+            }
+
+            function injectManifest(startUrl) {
+                // Remove any existing manifest link first
+                const existing = document.querySelector('link[rel="manifest"]');
+                if (existing) existing.remove();
+
+                const blob = new Blob([JSON.stringify(buildManifest(startUrl))],
+                                      { type: 'application/json' });
+                const link = document.createElement('link');
+                link.rel   = 'manifest';
+                link.href  = URL.createObjectURL(blob);
+                document.head.appendChild(link);
+            }
+
+            // Step 1: inject manifest immediately with current URL (fast path)
+            injectManifest(window.location.href);
+
+            // Step 2: once SW is ready, send it the current id + full URL,
+            //         then read back the stored URL and update manifest
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.ready.then(reg => {
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const currentId  = urlParams.get('id') || '';
+
+                    // Tell SW about the current visit
+                    reg.active?.postMessage({
+                        type:    'UPDATE_ID',
+                        id:      currentId,
+                        fullUrl: window.location.href
+                    });
+
+                    // Read back what SW has stored (may be a newer URL from a
+                    // different tab or a previous visit with a different ?id=)
+                    // Use SW's /sw-meta/last-id synthetic endpoint
+                    fetch('./sw-meta/last-id')
+                        .then(r => r.json())
+                        .then(meta => {
+                            // Only update manifest if the stored URL has an id
+                            // AND it's different from what we already set
+                            if (meta.fullUrl && meta.fullUrl !== window.location.href) {
+                                // The installed PWA should open the CURRENT url, not
+                                // a stale old one — so always use current window URL
+                                // but only after confirming SW received it
+                                injectManifest(window.location.href);
+                            }
+                        })
+                        .catch(() => {}); // SW not intercepting yet — already set above
+                });
+            }
+        })();
+    </script>
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="ExpRE">
+    <meta name="theme-color" content="#000000">
+    <!-- iOS home screen icon (uses poster image) -->
+    <link rel="apple-touch-icon" href="https://raw.githubusercontent.com/Mahesh2710/ARData/main/DynamicData/poster/welcomeposter.png">
+    <!-- iOS splash screen: black background while app loads -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
 
     <!-- FIX 3: Preload above-the-fold background images so browser fetches them
          immediately, not after CSS is parsed. High priority on the hero image. -->
@@ -130,27 +225,19 @@
             width: 100% !important; height: 100% !important;
             z-index: 0;
         }
-
-        /* MindAR injects a <video> for the camera feed — force it fullscreen.
-           Target every video inside the container regardless of attributes. */
-        #ar-scene-container video {
-            position: fixed !important;
-            top: 0 !important; left: 0 !important;
-            width: 100% !important; height: 100% !important;
-            object-fit: cover !important;
-            z-index: 0 !important;
-        }
-        /* Keep the AR canvas on top of the camera video */
+        /* A-Frame injects a <canvas> — force it fullscreen */
         #ar-scene-container canvas {
             position: fixed !important;
             top: 0 !important; left: 0 !important;
             width: 100% !important; height: 100% !important;
-            z-index: 1 !important;
-            background: transparent !important;
         }
-        /* Ensure body/html never show white when AR is active */
-        body.ar-active, html.ar-active {
-            background-color: transparent !important;
+        /* MindAR injects a <video> for the camera feed — force it fullscreen */
+        #ar-scene-container video.mindar-video,
+        #ar-scene-container video[autoplay] {
+            position: fixed !important;
+            top: 0 !important; left: 0 !important;
+            width: 100% !important; height: 100% !important;
+            object-fit: cover !important;
         }
 
         @keyframes scan { 0% { top: 0; } 100% { top: 100%; } }
@@ -216,11 +303,6 @@
         const videoContainer    = document.querySelector('#video-container');
         const videoWrapper      = document.querySelector('#video-wrapper');
         const buyNowBtn         = document.querySelector('#buy-now-cta');
-
-        // Click tracker fires when CTA is tapped — before navigation opens new tab
-        buyNowBtn.addEventListener('click', () => {
-            if (campaignData) fireClick(campaignData);
-        });
         const campaignTitle     = document.querySelector('#campaign-title');
         const errorScreen       = document.querySelector('#error-screen');
         const loadingOverlay    = document.querySelector('#loading-overlay');
@@ -228,41 +310,6 @@
 
         let campaignData    = null;
         let isStickyEnabled = true;
-
-        // ── Trackers ──────────────────────────────────────────────────────────────
-        // impressionFired guards so the impression pixel fires exactly once
-        // even if Play is tapped multiple times or the component re-renders.
-        let impressionFired = false;
-
-        function fireImpression(campaign) {
-            if (impressionFired) return;
-            impressionFired = true;
-
-            // Prefer campaign JSON fields; fall back to hardcoded default
-            const src = campaign?.impressionTrackerUrl ||
-                'https://imptrack.intoday.in/impression_tracker.php?domain=AT&clientCode=501877&loop=1&';
-
-            // Fire as a 1×1 Image ping — no DOM insertion needed, no CORS issues
-            const img = new Image();
-            img.src = src + '&t=' + Date.now(); // cache-bust with timestamp
-            console.log('[Track] Impression fired:', img.src);
-        }
-
-        function fireClick(campaign) {
-            // Prefer campaign JSON field; fall back to hardcoded default
-            const base = campaign?.clickTrackerUrl ||
-                'https://imptrack.intoday.in/click_tracker.php?domain=AT&clientCode=501876&k=';
-
-            // Append the encoded redirect URL if not already in base
-            const redirectUrl = campaign?.CTAredirectUrl || '';
-            const src = base.includes('k=')
-                ? base  // URL already contains the redirect param
-                : base + encodeURIComponent(redirectUrl);
-
-            const img = new Image();
-            img.src = src + '&t=' + Date.now();
-            console.log('[Track] Click fired:', img.src);
-        }
         let hasFoundOnce    = false;
 
         // ── FIX 2: Start API fetch at script parse time — no waiting for 'load' event.
@@ -325,7 +372,7 @@
             }
         });
 
-        // ── Script loader ─────────────────────────────────────────────────────────
+        // ── Script loader (skips if already in DOM from preload execution)
         function loadScript(src) {
             return new Promise((resolve, reject) => {
                 if (document.querySelector(`script[src="${src}"]`)) { resolve(); return; }
@@ -338,68 +385,15 @@
 
         let arScriptsLoaded = false;
 
+        // Load A-Frame first, then MindAR which depends on it.
+        // aframe-extras removed: unused in this project and it ships its own Three.js
+        // copy, causing "Multiple instances of Three.js" conflict with A-Frame's copy.
         async function ensureARScripts() {
             if (arScriptsLoaded) return;
+            loadingMsg.textContent = 'Loading AR libraries…';
             await loadScript('https://aframe.io/releases/1.6.0/aframe.min.js');
             await loadScript('https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js');
             arScriptsLoaded = true;
-        }
-
-        // ── Pre-warm camera stream ─────────────────────────────────────────────────
-        // Called immediately on Play tap (user gesture context) — starts getUserMedia
-        // in parallel with script loading. By the time scripts finish, the camera
-        // permission is already granted and the stream is live, so MindAR can use it
-        // instantly instead of waiting for its own internal getUserMedia round-trip.
-        let warmCameraStream = null;
-
-        async function prewarmCamera() {
-            if (warmCameraStream) return warmCameraStream;
-            try {
-                warmCameraStream = await navigator.mediaDevices.getUserMedia({
-                    video: {
-                        facingMode:  { ideal: 'environment' }, // rear camera
-                        width:       { ideal: 1280 },
-                        height:      { ideal: 720 }
-                    },
-                    audio: false
-                });
-                // Show the live feed immediately — inject a raw <video> behind the
-                // loading overlay so the user sees the camera while scripts load
-                const preview = document.createElement('video');
-                preview.id            = 'camera-preview';
-                preview.srcObject     = warmCameraStream;
-                preview.autoplay      = true;
-                preview.muted         = true;
-                preview.playsInline   = true;
-                preview.style.cssText = [
-                    'position:fixed', 'top:0', 'left:0',
-                    'width:100%', 'height:100%',
-                    'object-fit:cover',
-                    'z-index:1',          // behind loading overlay (z-index:150)
-                    'background:#000'
-                ].join(';');
-                document.body.appendChild(preview);
-                return warmCameraStream;
-            } catch (err) {
-                console.warn('[Camera] Pre-warm failed:', err);
-                return null;
-            }
-        }
-
-        // Hand the pre-warmed stream to MindAR so it skips its own getUserMedia.
-        // MindAR internally creates a <video> and calls getUserMedia — we intercept
-        // by monkey-patching getUserMedia to return our existing stream instantly.
-        function injectStreamIntoMindAR(stream) {
-            if (!stream) return;
-            const original = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
-            navigator.mediaDevices.getUserMedia = async (constraints) => {
-                // Only intercept video-only requests (MindAR's camera call)
-                if (constraints?.video && !constraints?.audio) {
-                    navigator.mediaDevices.getUserMedia = original; // restore immediately
-                    return stream;
-                }
-                return original(constraints);
-            };
         }
 
         // ── Build a-scene after AR scripts are ready ──────────────────────────────
@@ -506,90 +500,25 @@
                 autoStart: false, uiScanning: '#none'
             });
 
-            // ── Camera-aware AR startup ───────────────────────────────────────────
-            // White screen root causes:
-            //   A) arSystem.start() called before camera permission granted
-            //   B) canvas transparent but body still white behind it
-            //   C) Camera video not yet producing frames when scanner UI appears
-            //
-            // Fix: two-phase startup
-            //   Phase 1 — wait for renderstart (WebGL ready) → call arSystem.start()
-            //             This triggers getUserMedia (camera permission prompt)
-            //   Phase 2 — watch for MindAR's camera <video> to reach readyState >= 2
-            //             (HAVE_CURRENT_DATA) meaning actual pixels are available
-            //             THEN hide the loading overlay and show scanner UI
-            //
-            // Timeout safety nets ensure we never get permanently stuck.
-
-            let arStarted     = false;
-            let cameraReady   = false;
-
-            function showScannerUI() {
-                if (!cameraReady) return;
-                loadingOverlay.style.display = 'none';
-                scannerUi.style.display      = 'flex';
-            }
-
+            // Hide overlay and start AR tracking once the scene is truly ready.
+            // Uses three signals — whichever fires first wins (guarded by a flag):
+            //   1. 'renderstart'  — correct modern A-Frame event (replaces old 'render-target-loaded')
+            //   2. sceneEl.hasLoaded poll — catches the case where the scene was already
+            //      loaded before our listener was attached (race condition with innerHTML inject)
+            //   3. 3-second hard fallback — guarantees the overlay never stays forever
+            let arStarted = false;
             function startARTracking() {
                 if (arStarted) return;
                 arStarted = true;
-
+                loadingOverlay.style.display = 'none';
+                scannerUi.style.display      = 'flex';
                 const arSystem = sceneEl.systems['mindar-image-system'];
                 if (arSystem) arSystem.start();
-
-                // Phase 2: wait for camera video to have actual frames
-                // MindAR injects its camera video into the scene container
-                waitForCameraVideo();
             }
 
-            function waitForCameraVideo() {
-                // MindAR typically injects the camera video within ~500ms of start()
-                // Poll for it, then wait for canplay/readyState
-                let camPollAttempts = 0;
-                const camPoll = setInterval(() => {
-                    // Find any video that isn't our AR content video
-                    const camVideo = Array.from(
-                        document.querySelectorAll('#ar-scene-container video')
-                    ).find(v => v !== document.querySelector('#myVideo'));
-
-                    if (camVideo) {
-                        clearInterval(camPoll);
-
-                        if (camVideo.readyState >= 2) {
-                            // Already has frames
-                            cameraReady = true;
-                            showScannerUI();
-                        } else {
-                            // Wait for first frame
-                            camVideo.addEventListener('canplay', () => {
-                                cameraReady = true;
-                                showScannerUI();
-                            }, { once: true });
-
-                            // Safety: if canplay never fires within 4s, show anyway
-                            setTimeout(() => {
-                                if (!cameraReady) {
-                                    cameraReady = true;
-                                    showScannerUI();
-                                }
-                            }, 4000);
-                        }
-                        return;
-                    }
-
-                    // Give up polling after 6s and show scanner regardless
-                    if (++camPollAttempts > 30) {
-                        clearInterval(camPoll);
-                        cameraReady = true;
-                        showScannerUI();
-                    }
-                }, 200);
-            }
-
-            // Phase 1: wait for WebGL renderer to be ready
             sceneEl.addEventListener('renderstart', startARTracking, { once: true });
 
-            // Poll fallback in case renderstart already fired (race with innerHTML inject)
+            // Poll in case the event already fired before listener attached
             const readyPoll = setInterval(() => {
                 if (sceneEl.hasLoaded || sceneEl.renderStarted) {
                     clearInterval(readyPoll);
@@ -597,11 +526,11 @@
                 }
             }, 200);
 
-            // Hard cap: force start after 5s regardless — but camera check still runs
+            // Hard fallback: clear overlay after 3s regardless
             setTimeout(() => {
                 clearInterval(readyPoll);
                 startARTracking();
-            }, 5000);
+            }, 3000);
 
             const targetEntity = document.querySelector('#target-entity');
 
@@ -658,37 +587,20 @@
         playBtn.addEventListener('click', async () => {
             if (!campaignData) return;
 
-            // Fire impression: user has intentionally engaged with the AR experience
-            fireImpression(campaignData);
+            // Silent PWA install — fires native prompt using this tap as the user gesture.
+            // AR loading starts immediately in parallel; user can accept/dismiss independently.
+            triggerSilentInstall();
 
             loadingOverlay.style.display = 'flex';
-            loadingMsg.textContent = 'Starting camera…';
-
-            // Kick off camera + scripts IN PARALLEL immediately.
-            // prewarmCamera() uses this tap as the user-gesture for getUserMedia.
-            // ensureARScripts() downloads A-Frame + MindAR simultaneously.
-            // Both run at the same time — total wait = max(camera_time, script_time)
-            // instead of camera_time + script_time.
-            const [stream] = await Promise.all([
-                prewarmCamera(),
-                ensureARScripts()
-            ]);
-
-            // Inject the live stream into MindAR before the scene builds
-            injectStreamIntoMindAR(stream);
-
-            document.body.style.backgroundColor            = 'transparent';
-            document.documentElement.style.backgroundColor = 'transparent';
-            document.body.classList.add('ar-active');
-            document.documentElement.classList.add('ar-active');
-            welcomePage.style.display = 'none';
-
-            // Remove the raw preview — MindAR will create its own managed video
-            const preview = document.getElementById('camera-preview');
-            if (preview) preview.remove();
+            loadingMsg.textContent = 'Loading AR Experience…';
 
             try {
+                await ensureARScripts(); // FIX 1: parallel load inside
+                document.body.style.backgroundColor            = 'transparent';
+                document.documentElement.style.backgroundColor = 'transparent';
+                welcomePage.style.display = 'none';
                 buildARScene(campaignData);
+                // FIX 11: loadingOverlay hides inside buildARScene on render-target-loaded
             } catch (err) {
                 console.error('AR load error:', err);
                 loadingOverlay.style.display = 'none';
@@ -696,7 +608,66 @@
             }
         });
 
+        // ── PWA: Service Worker registration ─────────────────────────────────────
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(reg => {
+                        console.log('[PWA] SW registered, scope:', reg.scope);
+                        // Send current id to SW as soon as it's active
+                        const urlParams = new URLSearchParams(window.location.search);
+                        const msg = {
+                            type:    'UPDATE_ID',
+                            id:      urlParams.get('id') || '',
+                            fullUrl: window.location.href
+                        };
+                        // Active SW (returning visit)
+                        if (reg.active) reg.active.postMessage(msg);
+                        // Newly installed SW (first visit) — wait for it to activate
+                        (reg.installing || reg.waiting)?.addEventListener('statechange', function() {
+                            if (this.state === 'activated') reg.active?.postMessage(msg);
+                        });
+                    })
+                    .catch(err => console.warn('[PWA] SW registration failed:', err));
+            });
+        }
 
+        // ── PWA: Silent install on Play tap ──────────────────────────────────────
+        // No banners, no popups. Strategy:
+        //   1. Capture 'beforeinstallprompt' immediately and suppress the browser bar
+        //   2. When user taps Play (a real user gesture), fire .prompt() right away
+        //      The browser's native "Add to Home Screen?" sheet appears — 1 tap to confirm
+        //      The AR experience starts loading simultaneously behind it
+        //   3. iOS has no install API — nothing shown, user can use Safari's Share menu
+        //   4. Already-installed (standalone) — skip entirely
+
+        let deferredInstallPrompt = null;
+
+        const isStandalone = window.matchMedia('(display-mode: standalone)').matches
+                          || window.navigator.standalone === true;
+
+        if (!isStandalone) {
+            // Capture and suppress the automatic browser prompt
+            window.addEventListener('beforeinstallprompt', e => {
+                e.preventDefault();
+                deferredInstallPrompt = e;
+            });
+
+            window.addEventListener('appinstalled', () => {
+                deferredInstallPrompt = null;
+            });
+        }
+
+        // Called inside Play button tap — user gesture satisfies browser requirement
+        function triggerSilentInstall() {
+            if (!deferredInstallPrompt || isStandalone) return;
+            // Fire immediately — no await, so AR loading starts in parallel
+            deferredInstallPrompt.prompt();
+            deferredInstallPrompt.userChoice.then(({ outcome }) => {
+                console.log('[PWA] Install outcome:', outcome);
+                deferredInstallPrompt = null;
+            });
+        }
     </script>
 </body>
 </html>
