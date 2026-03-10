@@ -189,8 +189,7 @@
         <button onclick="location.reload()" style="margin-top:20px; padding:10px 25px; border-radius:20px; border:none; background:#4185f4; color:white; font-weight:bold;">Try Again</button>
     </div>
 
-    <!-- Click Tracker wraps the CTA — href fires the tracker URL which redirects to destination -->
-    <a href="https://imptrack.intoday.in/click_tracker.php?domain=AT&clientCode=501876&k=https%3A%2F%2Fblinkit.com%2F" target="_blank" id="buy-now-cta"></a>
+    <a href="#" target="_blank" id="buy-now-cta"></a>
     <div id="ar-scene-container"></div>
 
 
@@ -244,8 +243,9 @@
                 campaignTitle.innerText = 'ExpRE';
                 dynamicScannerImg.src   = campaign.scannerImg;
 
-                // Set CTA background image; href remains the click tracker URL
+                // Set CTA background image and dynamically build click tracker URL
                 buyNowBtn.style.backgroundImage = `url('${campaign.CTAimgUrl}')`;
+                buyNowBtn.href = `https://imptrack.intoday.in/click_tracker.php?domain=AT&clientCode=501876&k=${encodeURIComponent(campaign.CTAredirectUrl)}`;
 
                 prefetchARScripts();
 
