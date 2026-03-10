@@ -8,8 +8,8 @@
     <title>ExpRE</title>
 
     <!-- Impression Tracker -->
-    <script>var imp_track_ITGD = new Image();imp_track_ITGD.src = 'https://imptrack.intoday.in/impression_tracker.php?domain=AT&clientCode=501877&loop=1&';</script>
-    <noscript><img width="1" height="1" border="0" src="https://imptrack.intoday.in/impression_tracker.php?domain=AT&clientCode=501877&z=[timestamp]"></noscript>
+    <script>var imp_track_ITGD = new Image();imp_track_ITGD.src = 'https://imptrack.intoday.in/impression_tracker.php?domain=AT&clientCode=501877&loop=1&rnd=' + Math.random();</script>
+    <noscript><img width="1" height="1" border="0" src="https://imptrack.intoday.in/impression_tracker.php?domain=AT&clientCode=501877&z=[timestamp]&rnd=[timestamp]"></noscript>
 
     <!-- Preconnect / dns-prefetch for all external origins -->
     <link rel="preconnect" href="https://aframe.io" crossorigin>
@@ -195,7 +195,7 @@
 
 
     <script>
-        const API_URL = "https://akm-img-a-in.tosshub.com/app/at-app/at_dev/newicons/AR_expierence.json#?jnsdk";
+        const API_URL = "https://akm-img-a-in.tosshub.com/app/at-app/at_dev/newicons/AR_expierence.json?rnd=" + Math.random() + "#?jnsdk";
 
         const playBtn           = document.querySelector('#play-button');
         const welcomePage       = document.querySelector('#welcome-page');
